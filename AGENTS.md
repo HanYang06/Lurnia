@@ -39,6 +39,7 @@ When touching anything under `docs/roadmap/`:
 2. Items come from the capability pool, which is the `## 路线增量` section of `docs/roadmap/1.x-开发.md`; do not invent scope outside it.
 3. New capabilities must map to a design document before implementation; design lives in `docs/design/`.
 4. Do not edit versioning semantics (`0.MINOR.PATCH`) without reading `docs/design/versioning.md` first. The project does not commit to a 1.0 — this is a current-state choice, not a permanent promise.
+5. Validate any roadmap edit with `uv run python script/roadmap.py` — it checks the item cards, route IDs, nesting, and that parent checkboxes agree with their children.
 
 ## 4. Toolchain and Commands
 
