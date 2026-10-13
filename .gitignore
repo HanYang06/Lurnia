@@ -1,0 +1,6 @@
+__pycache__
+dict
+build
+
+.agents/skills/skill-creator
+.agents/skills/git-commit
