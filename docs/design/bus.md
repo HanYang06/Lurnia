@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 事件总线：两个平面
 
 ## 一、为什么不合成一个
@@ -29,9 +32,9 @@ invoke(capability, request) -> Reply
 
 - 恰好一个提供者；注册重复 = 启动期报错；
 - **没有提供者 = 显式报错**（`NoProviderError`），不是返回 `None`；
-- 用于：模块间代理，也就是 `docs/roadmap/index` 说的「模块互不依赖，经它调用」。
+- 用于：模块间代理，也就是 `docs/roadmap/1.x-开发.md` 说的「模块互不依赖，经它调用」。
 
-`capability` 用字符串命名空间（如 `note.create`），提供者在启动时**静态注册**。不做热加载（见 [../roadmap/inventory.md](../roadmap/inventory.md) 内核不要）。
+`capability` 用字符串命名空间（如 `note.create`），提供者在启动时**静态注册**。不做热加载（见 [../roadmap/1.x-开发.md](../roadmap/1.x-开发.md) 内核层）。
 
 ## 四、事件封套（内核资产）
 
@@ -68,7 +71,7 @@ Reply = Ok(value) | Err(kind, message, retryable)
 
 ## 六、权限在总线上的位置
 
-`guard` 属于内核（见 [../roadmap/inventory.md](../roadmap/inventory.md) P2），总线在**调用平面**上强制它：
+`guard` 属于内核（见 [../roadmap/1.x-开发.md](../roadmap/1.x-开发.md) 权限模块），总线在**调用平面**上强制它：
 
 ```
 invoke(capability, request):

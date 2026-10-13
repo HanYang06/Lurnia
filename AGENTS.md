@@ -36,7 +36,7 @@ The roadmap is the top authority. The order of authority is:
 When touching anything under `docs/roadmap/`:
 
 1. Follow [`Lurnia-RS-2026.md`](Lurnia-RS-2026.md) — it is self-contained and normative. In particular: roadmap items are parallel (no dependencies between items), each item is recorded as a six-line item card, and version assignment is a placement, not an ordering.
-2. Items come from the capability pool (`docs/roadmap/inventory.md` once it exists); do not invent scope outside it.
+2. Items come from the capability pool, which is the `## 路线增量` section of `docs/roadmap/1.x-开发.md`; do not invent scope outside it.
 3. New capabilities must map to a design document before implementation; design lives in `docs/design/`.
 4. Do not edit versioning semantics (`0.MINOR.PATCH`) without reading `docs/design/versioning.md` first. The project does not commit to a 1.0 — this is a current-state choice, not a permanent promise.
 

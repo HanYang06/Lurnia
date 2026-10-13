@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Lurnia 设计
 
 > 本目录是 Lurnia 的设计事实来源。代码是实现，这里是契约；两者不一致时，要么改代码，要么改这里。
@@ -21,7 +24,7 @@ Lurnia 当前没有发布 1.0 的必要，不承诺 1.0——不是「永不发 
 | 对象 | 性质 | 载体 |
 | --- | --- | --- |
 | **不变量** | 硬、少、任何 0.x 都不许破 | [invariants.md](invariants.md)，并落成可执行 conformance 测试 |
-| **能力池** | 软、多、每条独立可发布 | [../roadmap/inventory.md](../roadmap/inventory.md) |
+| **能力池** | 软、多、每条独立可发布 | [../roadmap/1.x-开发.md](../roadmap/1.x-开发.md) 的路线增量 |
 | **弃用管道** | 替代「稳定性」的唯一机制 | [versioning.md](versioning.md) |
 
 **不变量保证 0.9 的代码在 0.23 还认得出来；能力池保证永远有下一个 0.x 可发。**
@@ -33,8 +36,7 @@ Lurnia 当前没有发布 1.0 的必要，不承诺 1.0——不是「永不发 
 | [invariants.md](invariants.md) | 哪些东西任何 0.x 都不许破（九条） |
 | [versioning.md](versioning.md) | 版本号怎么走、破坏性变更怎么办 |
 | [bus.md](bus.md) | 模块之间怎么说话（两平面 + 事件封套） |
-| [../roadmap/inventory.md](../roadmap/inventory.md) | **总量**：这个项目可能包含的全部东西 |
-| [../roadmap/index](../roadmap/index) | 原始大纲，降级为导入源 |
+| [../roadmap/1.x-开发.md](../roadmap/1.x-开发.md) | **总量**：这个项目可能包含的全部东西 |
 
 ## 四、施工顺序
 

@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 版本与弃用
 
 ## 一、当前 0.x
@@ -40,10 +43,10 @@
 
 ## 五、和路线图的关系
 
-版本号不手写。`docs/roadmap/index` 是能力池，版本路线图从它派生：
+版本号不手写。`docs/roadmap/1.x-开发.md` 的路线增量是条目事实源，版本路线图从它派生：
 
 ```
-能力池 → 状态流转 → 版本路线图 → changelog / release notes → 下一个 MINOR 准入检查
+路线增量 → 状态流转 → 版本分配 → changelog / release notes → 下一个 MINOR 准入检查
 ```
 
-见 [../roadmap/inventory.md](../roadmap/inventory.md) PRJ5。
+见 [../roadmap/1.x-开发.md](../roadmap/1.x-开发.md)。
