@@ -282,38 +282,26 @@ def unauthorized_violations(root: pathlib.Path = KERNEL) -> list[str]:
 
 def schema_locations(
     root: pathlib.Path | None = None,
-) -> list[tuple[str, str, pathlib.Path]]:
-    """每个 DDL 根：``(schema, 包名, 目录)``。
+) -> list[tuple[str, pathlib.Path]]:
+    """每个 schema 与它的 DDL 目录：``(schema, 目录)``。
 
-    两处都算：内核自己的 ``core/sql/*``，以及组件包里的 ``components/<组件>/sql/*``
-    （[storage.md §五](../../docs/design/storage.md)：业务 schema 归组件包）。
-    只扫前者，新根下的 schema 就会**逃过 I4 的一致性检查** —— 那正是这条检查存在的理由。
+    家只有一个：``src/lurnia/sql/<schema>/``（见 storage.md §五）。
+    集中一处是有意的 —— 原来内核 schema 在 ``core/sql/``、业务 schema 在
+    ``components/<组件>/sql/``，看目录分不清「库结构变了」还是「内核逻辑变了」。
 
     ``root`` 默认取模块级的 ``KERNEL``，**在调用时解析**：默认参数会在定义时绑定，
     那样测试就没法把审计指向一棵临时树（这里踩过一次）。
     """
     base = KERNEL if root is None else root
-    found: list[tuple[str, str, pathlib.Path]] = []
-    core_sql = base / "core" / "sql"
-    if core_sql.is_dir():
-        found += [
-            (entry.name, "lurnia.core", entry)
-            for entry in sorted(core_sql.iterdir())
-            if entry.is_dir()
-        ]
-    components = base / "components"
-    if components.is_dir():
-        for component in sorted(p for p in components.iterdir() if p.is_dir()):
-            sql = component / "sql"
-            if not sql.is_dir():
-                continue
-            package = f"lurnia.components.{component.name}"
-            found += [
-                (entry.name, package, entry)
-                for entry in sorted(sql.iterdir())
-                if entry.is_dir()
-            ]
-    return found
+    sql_root = base / "sql"
+    if not sql_root.is_dir():
+        return []
+    return [
+        (entry.name, entry)
+        for entry in sorted(sql_root.iterdir())
+        # `__pycache__` 是解释器在包里生成的，不是 schema；以 `_` / `.` 开头的一律跳过
+        if entry.is_dir() and not entry.name.startswith(("_", "."))
+    ]
 
 
 def schema_drift_violations() -> list[str]:
@@ -327,26 +315,17 @@ def schema_drift_violations() -> list[str]:
     parent = str(KERNEL.parent)
     if parent not in sys.path:
         sys.path.insert(0, parent)
-    from lurnia.core.ddl import DdlError, migration_files, register_schema
+    from lurnia.core.ddl import DdlError, migration_files
     from lurnia.core.storage import check_drift
 
     violations: list[str] = []
-    seen: dict[str, str] = {}
-    for schema, package, schema_dir in schema_locations():
-        if schema in seen:
-            violations.append(
-                f"{schema}: 两个包都声明了这个 schema（{seen[schema]} / {package}）"
-                " —— 表名与 schema_meta 会互相撞号"
-            )
-            continue
-        seen[schema] = package
+    for schema, schema_dir in schema_locations():
         if not (schema_dir / "migrations").is_dir():
             violations.append(f"{schema}: 缺少 migrations/ 目录")
             continue
         if not (schema_dir / "tables").is_dir():
             violations.append(f"{schema}: 缺少 tables/ 目录")
             continue
-        register_schema(schema, package)
         try:
             migration_files(schema)
         except DdlError as exc:

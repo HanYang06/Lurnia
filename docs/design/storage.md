@@ -95,7 +95,7 @@
 
 ```
 成品（安装后的 APP）里能不能读到：
-  src/lurnia/core/sql/**      → 在包内，能读到
+  src/lurnia/sql/**           → 在包内，能读到
   config/table.sql            → 不在包内，读不到  ← 这就是不能放仓根的原因
 ```
 
@@ -105,33 +105,36 @@
 
 | | |
 | --- | --- |
-| 位置 | 内核 schema：`src/lurnia/core/sql/kernel/`；业务 schema：`src/lurnia/components/<组件名>/sql/<schema>/`（两者都在包内，走同一个加载器，见下） |
+| 位置 | **全部在 `src/lurnia/sql/<schema>/`**（内核与业务一视同仁，见下） |
 | 读取 | `importlib.resources`（不是 `Path(__file__)` / `sys.executable` 拼路径——冻结后它们指向临时解包目录，且 zip 里会失效） |
 | 收紧 | `tests/test_ddl.py` 断言每个 `.sql` 都能经加载器读到，且源码树里没有仓根流浪 SQL |
 | 命名 | `tables/`：一张表一个 `<表名>.sql`；`migrations/`：`NNNN` = 迁移目标版本，逐文件 +1 |
 
-**谁的表放谁的包（2026-10-17 修订）。** 本节原先只写了「家必须在包内」，没说「在包内哪一处」——
-结果业务 schema 会被顺手放进 `core/sql/`，于是**每加一张业务表都会在内核目录产生 diff**，
-review 时读起来像内核变更。现在定死：
+**一处放全部（2026-10-17 定稿）。** 本节原先只写了「家必须在包内」，没说「在包内哪一处」——
+结果业务 schema 被顺手放进 `core/sql/`，于是**每加一张业务表都会在内核目录产生 diff**，
+review 时读起来像内核变更。中间试过「内核 schema 留 `core/sql/`、业务 schema 归组件包」，
+最后收敛到更简单的一条：
 
-| 谁 | 放哪 | 为什么 |
-| --- | --- | --- |
-| 内核 schema（`kernel`） | `src/lurnia/core/sql/kernel/` | `event_log`（004）与 `attachment`（107）**本来就是内核层的表**，它们属于内核，放着不动 |
-| 业务 schema | `src/lurnia/components/<组件名>/sql/<schema>/` | 组件的表与组件同生共死；加业务数据结构不再动内核目录 |
+```
+src/lurnia/sql/<schema>/{tables,migrations}/*.sql     ← 所有 schema，包括 kernel
+```
+
+| 好处 | 说明 |
+| --- | --- |
+| **一眼看全** | `git log -- src/lurnia/sql` 就是「库结构变更史」；看目录分得清「库结构变了」与「内核逻辑变了」 |
+| **少一层活动零件** | 一套加载路径，不需要「schema → 哪个包」的注册与查表 |
+| **一视同仁** | `kernel` 只是其中一个 schema 名，内核的表不因为住过 `core/` 就更高贵 |
+
+**代价（认下来）：** 业务 schema 不再住在组件包里，所以「删组件顺手删掉它的 DDL」这条便利没有了。
 
 **不是仓根 `config/`。** `config/` 在包外，冻结打包只收包内的东西（本节上文），
 而且 `tests/test_ddl.py::test_workspace_config_dir_is_not_the_ddl_home` 专门拦这件事——
 放进去**当场红**，理由就写在那个测试的断言消息里。
 
-**落地前提**（现在还没有业务 schema，所以这件事还没做）：
-
-- `src/lurnia/core/ddl.py` 目前把 SQL 根写死成 `lurnia.core`（`PACKAGE`），要加一层
-  「schema → 包」的解析；
-- `script/audit.py` 的 `schema_drift_violations()` 只扫 `core/sql/*`，要一并扫组件根，
-  否则新根下的 schema 会丢掉 I4 的「快照 vs 迁移链」一致性防线；
-- `tests/test_ddl.py::test_ddl_lives_inside_the_package` 的断言口径要跟着改；
-- `script/build_sidecar.py` **不用改**：它的数据文件发现根是 `src/lurnia`
-  （`PACKAGE.rglob("*.sql")`），组件包天然被覆盖。
+**已落（2026-10-17）**：`ddl.PACKAGE = "lurnia.sql"`，加载器只有一条路径；
+`script/audit.py` 的 `schema_drift_violations()` 扫这一个根（跳过 `__pycache__` 这类
+下划线/点开头的目录）；`script/build_sidecar.py` 不用改 —— 它的数据文件发现根是
+`src/lurnia`，`sql/` 天然被覆盖。
 
 **一句话一条语句？不需要。** 切分交给标准库 `sqlite3.complete_statement`，它认得字符串字面量里的分号和 `BEGIN ... END` 触发器体，所以一个文件可以塞多张表，也不必把每个文件限成一条。**不引第三方 SQL 解析器。**
 

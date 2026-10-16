@@ -127,7 +127,7 @@ v1 只有「内核 → UI」一个方向。编辑器是第一个**必须请求**
 | 数据库、附件库、配置 | `%APPDATA%/Lurnia`（Windows）、`~/Library/Application Support/Lurnia`（macOS）、`~/.local/share/Lurnia`（Linux） |
 | **只读资源**（`.sql`、schema `.json`、图标） | **打进 PyInstaller 包内**，用 `importlib.resources` 读 |
 
-这就是为什么 DDL 必须在**包内**而**不能**放仓库根 `config/`：`config/` 既不属于包、也不在 `--add-data` 的目标里，成品里根本没有它。包内哪一处见 [storage.md §五](storage.md)：内核 schema 在 `src/lurnia/core/sql/`，业务 schema 在**拥有它的组件包**里（如 `src/lurnia/components/doc/sql/doc/`）。**`.json` 与 `.sql` 同级**：文档类型的 schema 资源也是数据文件，`script/build_sidecar.py` 两者一起收，`--self-check` 在冻结产物里验它们读得到（[editor.md §4.5](editor.md)）。
+这就是为什么 DDL 必须在**包内**而**不能**放仓库根 `config/`：`config/` 既不属于包、也不在 `--add-data` 的目标里，成品里根本没有它。包内哪一处见 [storage.md §五](storage.md)：**所有 schema 都在 `src/lurnia/sql/<schema>/`**（一处放全部，包括内核 schema）。**`.json` 与 `.sql` 同级**：文档类型的 schema 资源也是数据文件，`script/build_sidecar.py` 两者一起收，`--self-check` 在冻结产物里验它们读得到（[editor.md §4.5](editor.md)）。
 
 ## 七、构建脚本与门禁
 

@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 import lurnia.core
+import lurnia.sql
 from lurnia.core.ddl import (
     DdlError,
     highest_version,
@@ -46,9 +47,9 @@ def fake_sql_root(tmp_path: Path) -> object:
     redirection is active.
     """
     root = tmp_path / "pkg"
-    real = Path(lurnia.core.__file__).parent / "sql"
+    real = Path(lurnia.sql.__file__).parent
     shutil.copytree(real, root / "sql")
-    use_sql_root(root)
+    use_sql_root(root / "sql")
     try:
         yield root / "sql"
     finally:
@@ -185,9 +186,8 @@ def test_split_raises_on_a_bad_file_name(fake_sql_root: object) -> None:
 
 
 def test_ddl_lives_inside_the_package() -> None:
-    """DDL must be under ``lurnia/core/sql`` -- ``config/`` is not packaged."""
-    package_root = Path(lurnia.core.__file__).parent
-    sql_root = package_root / "sql"
+    """All DDL lives in the ``lurnia.sql`` package -- ``config/`` is not packaged."""
+    sql_root = Path(lurnia.sql.__file__).parent
     assert sql_root.is_dir()
     assert (sql_root / KERNEL_SCHEMA).is_dir()
     assert (sql_root / KERNEL_SCHEMA / "tables").is_dir()
@@ -208,7 +208,7 @@ def test_workspace_config_dir_is_not_the_ddl_home() -> None:
     )
     assert stray == [], (
         f"repo-root SQL is not packaged into the wheel: {stray}. "
-        "DDL belongs in src/lurnia/core/sql/."
+        "DDL belongs in src/lurnia/sql/."
     )
 
 
@@ -227,9 +227,9 @@ def test_ddl_is_reachable_as_a_package_resource() -> None:
     """
     from importlib import resources
 
-    from lurnia.core.ddl import PACKAGE, SQL_ROOT
+    from lurnia.core.ddl import PACKAGE
 
-    root = resources.files(PACKAGE).joinpath(SQL_ROOT, KERNEL_SCHEMA)
+    root = resources.files(PACKAGE).joinpath(KERNEL_SCHEMA)
     for section in ("tables", "migrations"):
         entries = [p.name for p in root.joinpath(section).iterdir()]
         assert entries, f"{section}/ is empty"
@@ -249,8 +249,8 @@ def test_every_package_sql_file_is_loadable() -> None:
     naming convention is what makes a file reachable (``NNNN_描述.sql`` for
     migrations, ``<table>.sql`` for snapshots).
     """
-    package_root = Path(lurnia.core.__file__).parent
-    on_disk = {p.name for p in (package_root / "sql" / KERNEL_SCHEMA).rglob("*.sql")}
+    sql_root = Path(lurnia.sql.__file__).parent
+    on_disk = {p.name for p in (sql_root / KERNEL_SCHEMA).rglob("*.sql")}
     reachable = {name for _v, name in migration_files(KERNEL_SCHEMA)}
     reachable |= set(table_files(KERNEL_SCHEMA))
     assert on_disk == reachable, f"unreachable: {sorted(on_disk - reachable)}"
@@ -897,19 +897,17 @@ def test_install_snapshot_rejects_an_empty_statement_list(
 
 
 # --------------------------------------------------------------------------
-# 一个 schema 的家：内核 schema 在 core/sql，业务 schema 归组件包（storage.md §五）
+# 一个 schema 的家：全部在 src/lurnia/sql（storage.md §五）
 # --------------------------------------------------------------------------
 
 
-def test_a_component_schema_lives_in_its_own_package() -> None:
-    """业务 DDL 归组件包，不进 `core/` —— 加业务表就不会在内核目录留 diff。"""
+def test_every_schema_lives_in_one_package() -> None:
+    """集中一处：`git log -- src/lurnia/sql` 就是库结构变更史。"""
     from lurnia.core import ddl
 
-    # 没注册过的名字按内核包找（别拿 "doc" 断言：别的测试会把它注册掉）
-    assert ddl.schema_package("never-registered") == ddl.PACKAGE
-    ddl.register_schema("doc", "lurnia.components.doc")
-
-    assert ddl.schema_package("doc") == "lurnia.components.doc"
+    assert ddl.PACKAGE == "lurnia.sql"
+    assert ddl.sql_root() is not None
+    assert highest_version("kernel") > 0
     assert highest_version("doc") == 2
     assert [name for name, _ in read_tables("doc")] == [
         "annotation.sql",
@@ -918,23 +916,6 @@ def test_a_component_schema_lives_in_its_own_package() -> None:
         "doc_revision.sql",
     ]
     assert [version for version, _ in read_schema("doc")] == [1, 2]
-
-
-def test_a_schema_cannot_move_between_packages() -> None:
-    """表名在库里是全局的，`schema_meta` 也按名字记账：重名会在升级时撞号。"""
-    from lurnia.core import ddl
-
-    ddl.register_schema("doc", "lurnia.components.doc")
-    with pytest.raises(DdlError, match="已注册"):
-        ddl.register_schema("doc", "lurnia.components.note")
-    assert ddl.registered_schemas()["doc"] == "lurnia.components.doc"
-
-
-def test_an_unregistered_schema_is_looked_for_in_the_kernel_package() -> None:
-    from lurnia.core import ddl
-
-    assert ddl.schema_package("kernel") == ddl.PACKAGE
-    assert highest_version("kernel") > 0
 
 
 # --------------------------------------------------------------------------
@@ -955,26 +936,29 @@ def _audit_module() -> Any:
     return module
 
 
-def test_the_audit_finds_both_ddl_roots() -> None:
+def test_the_audit_finds_every_schema_in_the_sql_package() -> None:
     audit = _audit_module()
-    locations = {
-        (schema, package) for schema, package, _dir in audit.schema_locations()
-    }
-    assert ("kernel", "lurnia.core") in locations
-    assert ("doc", "lurnia.components.doc") in locations
+    names = {schema for schema, _dir in audit.schema_locations()}
+    assert {"kernel", "doc"} <= names
 
 
-def test_the_audit_reports_a_schema_declared_in_two_packages(
+def test_the_audit_reports_broken_schema_directories(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """目录缺一半、或迁移链是空的，都必须在审计里报出来。"""
+    (tmp_path / "sql" / "__pycache__").mkdir(parents=True)  # 解释器生成的，不是 schema
     for schema_dir in (
-        tmp_path / "core" / "sql" / "dup",
-        tmp_path / "components" / "x" / "sql" / "dup",
+        tmp_path / "sql" / "nomigrations" / "tables",
+        tmp_path / "sql" / "notables" / "migrations",
+        tmp_path / "sql" / "emptychain" / "tables",
+        tmp_path / "sql" / "emptychain" / "migrations",
     ):
-        (schema_dir / "tables").mkdir(parents=True)
-        (schema_dir / "migrations").mkdir()
+        schema_dir.mkdir(parents=True)
 
     audit = _audit_module()
     monkeypatch.setattr(audit, "KERNEL", tmp_path)
     problems = audit.schema_drift_violations()
-    assert any("两个包" in problem for problem in problems), problems
+    assert any("migrations" in problem for problem in problems), problems
+    assert any("tables" in problem for problem in problems), problems
+    assert any("迁移链是空的" in problem for problem in problems), problems
+    assert not any("__pycache__" in problem for problem in problems), problems

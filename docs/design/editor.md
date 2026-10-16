@@ -34,7 +34,7 @@
 | A9 | **渲染期零网络**：远程图片/字体/样式一律不加载；粘贴进来的远程资源必须本地化成附件，否则显式占位 | 粘贴多一步失败提示 |
 | A10 | 前端编辑器用 **ProseMirror**，schema 由 A3 的单一来源生成 | 引入一个前端依赖 |
 | A11 | 宿主 → 内核的请求需要 stdio **`call` / `reply` 帧（协议 v2）**，sidecar 开始解析 stdin | 边界协议升级，三处同时改 |
-| A12 | **业务 schema 归组件包**（`components/<名>/sql/<schema>/`），内核只装内核自己的表 | 加载器要补「schema → 包」解析（storage.md §五） |
+| A12 | **所有 DDL 一处放**：`src/lurnia/sql/<schema>/`，内核与业务一视同仁 | 业务 schema 不再住在组件包里（storage.md §五） |
 | A13 | 写入分两档：**自动落盘不产生修订**，修订只在显式提交时产生 | 多一个档位概念；换来库体积与日志脊柱都干净 |
 | A14 | 表格：行列 + 表头，**不做合并单元格、不做嵌套** | 复杂表格要等锚点、粘贴、导出三处一起升级 |
 | A15 | **存储只认「文档 + 文档类型」**（`doc.doc_type`），不认「笔记」 | 多一层间接；换来加一种编辑器不改库 |
@@ -523,15 +523,14 @@ core.change("doc.saved", …)  →
 **存的是「文档」，不是「笔记」**（A15）：所有编辑器种类共用一套表与一套能力，类型由
 `doc_type` 判别。加一种编辑器是**注册一个类型**（§3.1）——不加表、不加列。
 
-- **schema 名 `doc`**，DDL 落 `src/lurnia/components/doc/sql/doc/{tables,migrations}/*.sql`
-  —— **业务 schema 归组件包，不进 `core/`**（storage.md §五，2026-10-17 修订）。
-  组件在装配时自己声明这件事：`ddl.register_schema("doc", __package__)`，
-  所以内核不需要认识任何业务名。这样加业务数据结构时 diff 落在组件目录，内核零改动；
-  `core/sql/kernel/` 里只留内核自己的 `event_log`、`attachment`。
+- **schema 名 `doc`**，DDL 落 `src/lurnia/sql/doc/{tables,migrations}/*.sql`
+  —— **所有 schema 都在 `src/lurnia/sql/`**（storage.md §五，2026-10-17 定稿）。
+  好处是 `git log -- src/lurnia/sql` 就是库结构变更史：加业务表时 diff 落在 `sql/`，
+  内核目录（`core/`）一个字节都不动。加载器只有一条路径，没有「schema → 包」的注册表。
   **不要往仓根 `config/` 放**：它在包外，冻结产物里没有它——`tests/test_ddl.py` 有一条
   专门拦这件事的测试，放进去当场红。
-  `script/audit.py` 的 `schema_drift_violations()` **已改成扫两处根**（内核 + 组件），
-  否则新根下的 schema 会丢掉 I4 的「快照 vs 迁移链」防线。
+  `script/audit.py` 的 `schema_drift_violations()` 扫这一个根，新 schema 自动进 I4 的
+  「快照 vs 迁移链」防线。
 - 表（`doc` / `doc_revision` 是切片 0，`annotation` / `doc_ref_index` 随 111、112 落地，
   schema `doc` 现在是 **v2**；`doc_fts` 见下）：
 

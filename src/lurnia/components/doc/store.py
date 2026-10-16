@@ -38,15 +38,12 @@ from lurnia.components.doc.registry import (
     migrate,
 )
 from lurnia.core.contracts import Command, Err, ErrKind, Ok, Reply, wall_clock
-from lurnia.core.ddl import register_schema
 
 if TYPE_CHECKING:
     from lurnia.assembly import Core
 
-#: 业务 schema 名。DDL 在 `components/doc/sql/doc/`（storage.md §五）。
+#: 库里的 schema 名。DDL 在 `src/lurnia/sql/doc/`（storage.md §五）。
 SCHEMA = "doc"
-#: 这份 DDL 住在哪个包 —— **组件自己声明**，内核不需要认识业务名。
-PACKAGE = __package__ or "lurnia.components.doc"
 #: 单文档硬上限（§十七）。超了显式报错，不悄悄截断。
 MAX_BODY_BYTES = 8 * 1024 * 1024
 TITLE_LIMIT = 80
@@ -105,12 +102,7 @@ class DocStore:
     # ---- 装配 -----------------------------------------------------------
 
     def ensure_schema(self) -> None:
-        """声明 DDL 的家，再把库推到 `doc` schema 的当前版本。
-
-        先 `register_schema`：不声明的话 `ddl` 会去内核包里找 `sql/doc/`，
-        报的错还是「找不到 DDL 目录」——这个坑在第一次装配时就踩到过。
-        """
-        register_schema(SCHEMA, PACKAGE)
+        """把库推到 `doc` schema 的当前版本（DDL 在 `lurnia.sql` 里）。"""
         self._core.db.ensure(SCHEMA)
 
     def prepare(self) -> None:
