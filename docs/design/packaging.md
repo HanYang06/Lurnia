@@ -85,6 +85,39 @@ sidecar 只等 stdin 关闭（EOF）就退出：生命周期由宿主掌握，�
 在建库，还是已经死了。把「已就绪」显式说出来，UI 才能区分「核心没起来」与
 「核心起来了但还没有事件」。
 
+### 宿主 → 内核：`call` / `reply`（v2，2026-10-17 已实现，未实机联调）
+
+<a id="r115"></a>
+
+v1 只有「内核 → UI」一个方向。编辑器是第一个**必须请求**的组件（存文档、取文档），
+所以补两种帧，协议号升到 **2**：
+
+| `type` | 方向 | 帧 |
+| --- | --- | --- |
+| `call` | 宿主 → 内核 | `{"type":"call","protocol":2,"id":"…","capability":"doc.save","request":{…}}` |
+| `reply` | 内核 → 宿主 | `{"type":"reply","protocol":2,"id":"…","reply":{"ok":…}}`／`{"…","reply":{"err":{"kind","message","retryable"}}}` |
+
+- **`request.body` 是 JSON 文本，不是对象**（`doc.save` 用）：文档要**原样入库**、
+  不 re-dump（[editor.md §3.3](editor.md) 第 2 条），双重编码就是这条口径的代价。
+- `reply` 用共享错误模型（[bus.md](bus.md) §四）：`ok` 与 `err` 二选一，调用方只需要
+  认识一种失败形状。
+- `call` 进**调用平面**（`bus.invoke`），不进广播平面：调用恰好一个提供者、没人接必须报错，
+  而广播允许没人接（bus.md §一）。合成一条会让「没人接」不可区分 —— 那正是 bus.md
+  拒绝合并两个平面的理由。
+- **`subject` 由内核填本机主体**，前端不传、也不许造身份（[ui.md](ui.md) §九；I6）；
+  帧里就算带了 `subject` 也会被忽略（有测试钉住）。
+- **两个方向都锁 UTF-8**：v2 加 stdin 解析时只锁了 stdout，中文经 `call` 帧进来当场
+  解不开 —— 这条是端到端测试（子进程 + 真入口）抓到的，单元测试看不见。
+- **一行不合法不会打断循环**：坏 JSON、非 `call` 帧各回一条 `error` 帧后继续读；
+  `call` 缺 `id` 也回 `error`（没有 id 就无法关联回复）。EOF 仍然退出。
+- 宿主侧：`lib.rs` 的 `#[tauri::command] kernel_call` 把请求写成一行喂给 sidecar 的 stdin
+  （写句柄归一个独立写线程），`reply` 帧由 stdout 循环 emit 成 `kernel://reply`；
+  前端 `app/src/kernel.ts` 的 `callKernel()` 按 `id` 关联 —— **Rust 侧不维护挂起表**。
+- 状态：**代码已落，未实机联调**。Python 侧有端到端测试；Rust 侧 `cargo check`/`clippy`
+  通过；前端 `tsc` 通过。真正的联调要 `build_sidecar.py` + `tauri dev`。
+- 动机与验收见 [editor.md §十八](editor.md)；**帧格式以本节为准**（协议是打包边界的设计，
+  不是编辑器的设计）。
+
 ## 六、数据放哪
 
 `sys.executable` 在 PyInstaller 单文件模式下指向**临时解包目录**，不是安装目录。所以数据路径**绝不能**由 `__file__` 或 `sys.executable` 推导：
@@ -92,9 +125,9 @@ sidecar 只等 stdin 关闭（EOF）就退出：生命周期由宿主掌握，�
 | 数据 | 位置 |
 | --- | --- |
 | 数据库、附件库、配置 | `%APPDATA%/Lurnia`（Windows）、`~/Library/Application Support/Lurnia`（macOS）、`~/.local/share/Lurnia`（Linux） |
-| **只读资源**（`.sql`、图标） | **打进 PyInstaller 包内**，用 `importlib.resources` 读 |
+| **只读资源**（`.sql`、schema `.json`、图标） | **打进 PyInstaller 包内**，用 `importlib.resources` 读 |
 
-这就是为什么 SQL 必须在 `src/lurnia/core/sql/` 而**不能**放仓库根 `config/`：`config/` 既不属于包、也不在 `--add-data` 的目标里，成品里根本没有它。
+这就是为什么 DDL 必须在**包内**而**不能**放仓库根 `config/`：`config/` 既不属于包、也不在 `--add-data` 的目标里，成品里根本没有它。包内哪一处见 [storage.md §五](storage.md)：内核 schema 在 `src/lurnia/core/sql/`，业务 schema 在**拥有它的组件包**里（如 `src/lurnia/components/doc/sql/doc/`）。**`.json` 与 `.sql` 同级**：文档类型的 schema 资源也是数据文件，`script/build_sidecar.py` 两者一起收，`--self-check` 在冻结产物里验它们读得到（[editor.md §4.5](editor.md)）。
 
 ## 七、构建脚本与门禁
 
