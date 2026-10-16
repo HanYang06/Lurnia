@@ -10,18 +10,26 @@
 
 import type { ReactNode } from "react";
 
-function Glyph({ children }: { children: ReactNode }) {
+function Glyph({
+  children,
+  size = 20,
+  weight = 1.4,
+}: {
+  children: ReactNode;
+  size?: number;
+  weight?: number;
+}) {
   return (
     <svg
       aria-hidden="true"
       fill="none"
-      height="16"
+      height={size}
       stroke="currentColor"
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth="1.4"
+      strokeWidth={weight}
       viewBox="0 0 16 16"
-      width="16"
+      width={size}
     >
       {children}
     </svg>
@@ -70,9 +78,8 @@ export function AiIcon() {
 export function SettingsIcon() {
   return (
     <Glyph>
-      <path d="M3 5.2h10M3 10.8h10" />
-      <circle cx="6" cy="5.2" r="1.6" />
-      <circle cx="10.4" cy="10.8" r="1.6" />
+      <circle cx="8" cy="8" r="3.1" />
+      <path d="M8 1.7v1.9M8 12.4v1.9M1.7 8h1.9M12.4 8h1.9M3.55 3.55l1.35 1.35M11.1 11.1l1.35 1.35M12.45 3.55l-1.35 1.35M4.9 11.1l-1.35 1.35" />
     </Glyph>
   );
 }
@@ -89,7 +96,7 @@ export function BackIcon() {
 /** 检视器：右侧栏的轮廓。窄窗口下它就是那条图标条上的按钮。 */
 export function PanelIcon() {
   return (
-    <Glyph>
+    <Glyph size={16}>
       <rect height="12" rx="1.5" width="12" x="2" y="2" />
       <path d="M10 2v12" />
     </Glyph>
@@ -99,8 +106,8 @@ export function PanelIcon() {
 /** 新建：一个加号。**不用文字** —— §1.0「能用符号说清就不写字」。 */
 export function PlusIcon() {
   return (
-    <Glyph>
-      <path d="M8 3.5v9M3.5 8h9" />
+    <Glyph size={18} weight={2}>
+      <path d="M8 3.2v9.6M3.2 8h9.6" />
     </Glyph>
   );
 }
@@ -108,7 +115,7 @@ export function PlusIcon() {
 /** 账户：右上角那个头像位。还没有账户系统，所以先画一个通用的人形。 */
 export function UserIcon() {
   return (
-    <Glyph>
+    <Glyph size={18}>
       <circle cx="8" cy="6" r="2.6" />
       <path d="M3.4 13c.6-2.2 2.4-3.4 4.6-3.4S12 10.8 12.6 13" />
     </Glyph>

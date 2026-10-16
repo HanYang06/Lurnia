@@ -15,7 +15,6 @@ import { useEffect, useState, type ChangeEvent } from "react";
 
 import { Gallery } from "./panels/Gallery";
 import {
-  EmptyState,
   Select,
   StateBadge,
   Tag,
@@ -34,7 +33,6 @@ import {
   AiIcon,
   Inspector,
   ListPane,
-  LogSpine,
   NavRail,
   TopBar,
   NoteIcon,
@@ -47,7 +45,6 @@ import {
   type ListEntry,
   type NavModule,
   type ShellLayout,
-  type VersionNode,
 } from "./shell";
 import {
   THEME_CHOICES,
@@ -170,11 +167,8 @@ function App() {
     keyword.length === 0
       ? allEntries
       : allEntries.filter((item) => item.label.toLowerCase().includes(keyword));
-  const selectedLabel = allEntries.find((item) => item.id === entry)?.label ?? null;
 
   // 版本时间线（§3.2）的数据源是 doc 能力的版本链，还没接 —— 空态是诚实的。
-  const versions: readonly VersionNode[] = [];
-
   // 「关于」页里的三态说明：给 StateBadge 一个真实用处，也顺便把 I2 摆在界面上。
   const decisions: readonly Decision[] = ["allow", "deny", "uncertain"];
 
@@ -217,9 +211,7 @@ function App() {
       list={
         <ListPane
           active={entry}
-          empty={
-            keyword.length > 0 ? `没有匹配「${query.trim()}」的条目。` : "还没有条目。"
-          }
+          empty={keyword.length > 0 ? "没有匹配的条目。" : undefined}
           createHint="还没有文档写入接口（doc 能力未接）"
           entries={entries}
           label={isSettings ? "设置" : copy.title}
@@ -248,12 +240,10 @@ function App() {
           onBack={() => {
             setLayout((current) => ({ ...current, pane: "list" }));
           }}
-          title={selectedLabel ?? copy.title}
         >
           {readBody}
         </ReadPane>
       }
-      spine={<LogSpine versions={versions} />}
       top={
         <TopBar
           action={
@@ -275,7 +265,6 @@ function App() {
           <span className="status__dot" data-state={kernelState(ready, stopped)} />
           <span>{kernelLabel(ready, stopped)}</span>
           <span>事件 {events.length}</span>
-          <span>版本 {versions.length}</span>
         </>
       }
     />
@@ -368,8 +357,11 @@ function App() {
       );
     }
 
-    // §1.0 精简：空态只留一句。为什么空、将来长出什么属于文档，不属于界面。
-    return <EmptyState title={`${copy.title}还没有内容`} why={copy.short} />;
+    // 搜索没命中是**用户动作的反馈**，给一句；没有内容时什么都不写（§1.0 留白）。
+    if (keyword.length > 0) {
+      return <p className="note">没有匹配的条目。</p>;
+    }
+    return null;
   }
 }
 

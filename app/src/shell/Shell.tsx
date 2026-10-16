@@ -139,7 +139,8 @@ export function ListPane({
   /** 有 doc 写入接口之后传进来；没有就渲染成禁用的「+」（§1.0：符号优先）。 */
   onCreate?: () => void;
   createHint?: string;
-  empty: string;
+  /** 只在**用户搜索没命中**这类反馈场合给一句；没有内容时留白（§1.0）。 */
+  empty?: string;
 }) {
   return (
     <div aria-label={label} className="lr-list" role="group">
@@ -166,7 +167,7 @@ export function ListPane({
         </button>
       </div>
       {entries.length === 0 ? (
-        <p className="lr-list__empty">{empty}</p>
+        empty && <p className="lr-list__empty">{empty}</p>
       ) : (
         <ul className="lr-list__items">
           {entries.map((entry) => (
@@ -236,28 +237,29 @@ export function Inspector({ label, children }: { label: string; children: ReactN
   );
 }
 
-/** 读面：正文限制 58ch，窗口拉宽时**留白增长，行宽不增长**（§3.1）。 */
+/**
+ * 读面：正文限制 58ch，窗口拉宽时**留白增长，行宽不增长**（§3.1）。
+ *
+ * **没有头部**（2026-10-17）：标题与那条分隔线都被撤了 —— 谁不知道自己在编辑笔记？
+ * 编辑器最珍贵的一片区域就是顶部，写东西习惯从上往下写，不能拿标题牌和横线压住它。
+ * 窄窗口下的返回按钮改为浮在左上角，仍然只占它自己那一小块。
+ */
 export function ReadPane({
-  title,
   onBack,
   children,
 }: {
-  title: string;
   onBack?: () => void;
   children: ReactNode;
 }) {
   return (
     <section aria-label="读面" className="lr-read">
-      <header className="lr-read__header">
-        {onBack && (
-          <span className="lr-read__back">
-            <Button onClick={onBack} variant="quiet">
-              列表
-            </Button>
-          </span>
-        )}
-        <h1 className="lr-read__title">{title}</h1>
-      </header>
+      {onBack && (
+        <div className="lr-read__back">
+          <Button onClick={onBack} variant="quiet">
+            列表
+          </Button>
+        </div>
+      )}
       <div className="lr-read__body">{children}</div>
     </section>
   );
@@ -281,7 +283,6 @@ export type ShellProps = {
   top: ReactNode;
   nav: ReactNode;
   list: ReactNode;
-  spine: ReactNode;
   read: ReactNode;
   inspector: ReactNode;
   status: ReactNode;
@@ -300,7 +301,6 @@ export function Shell({
   top,
   nav,
   list,
-  spine,
   read,
   inspector,
   status,
@@ -331,7 +331,6 @@ export function Shell({
       <div className="lr-shell__top">{top}</div>
       <div className="lr-shell__nav">{nav}</div>
       <div className="lr-shell__list">{list}</div>
-      <div className="lr-shell__spine">{spine}</div>
       <div className="lr-shell__read">{read}</div>
       <div className="lr-shell__inspector">
         {/* 图标条：只在窄窗口出现（Shell.css 的 <1180 媒体查询）。 */}

@@ -32,9 +32,9 @@ describe("ui.md §3.1：六个区都在", () => {
     expect(html).toContain("lr-list");
   });
 
-  it("日志脊柱（签名元素）", () => {
-    expect(html).toContain('aria-label="版本时间线"');
-    expect(html).toContain("lr-spine");
+  it("脊柱不再占一列（批注 1：空的时候是个突兀的窄条）", () => {
+    expect(html).not.toContain('aria-label="版本时间线"');
+    expect(html).not.toContain("lr-shell__spine");
   });
 
   it("读面", () => {
@@ -54,16 +54,15 @@ describe("ui.md §3.1：六个区都在", () => {
 });
 
 describe("没有数据的地方写空态，不写假数据", () => {
-  it("脊柱空态说明的是「还没有版本记录」", () => {
-    expect(html).toContain("还没有版本记录");
+  it("没有内容时读面**什么都不写**（§1.0 留白）", () => {
+    expect(html).not.toContain("还没有内容");
+    expect(html).not.toContain("等内核把文档的读接口露出来");
+    expect(html).not.toContain("lr-empty__next");
   });
 
-  it("空态只留一句（§1.0 精简）", () => {
-    expect(html).toContain("笔记还没有内容");
-    expect(html).toContain("lr-empty__why");
-    // 「将来长出什么」那段小作文已经删掉，且不许回来
-    expect(html).not.toContain("lr-empty__next");
-    expect(html).not.toContain("doc 能力的读接口（列文档");
+  it("读面没有标题与分隔线（批注 2：不压编辑器的头部）", () => {
+    expect(html).not.toContain("lr-read__header");
+    expect(html).not.toContain("lr-read__title");
   });
 
   it("核心没起来时不编造版本号，只说在等", () => {
@@ -93,6 +92,10 @@ describe("顶栏与折叠钮各就各位（§3.1 2026-10-17 改版）", () => {
   it("右上角是账户位，不是「新建」", () => {
     expect(html).toContain("lr-avatar");
     expect(html).toContain('aria-label="账户"');
+  });
+
+  it("空列表不写字（批注 4b）", () => {
+    expect(html).not.toContain("lr-list__empty");
   });
 
   it("导航是纯图标：图标不占可见文字，但名字给了读屏与悬停", () => {

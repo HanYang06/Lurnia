@@ -20,11 +20,13 @@
   color: var(--lr-text);
   display: grid;
   font-size: var(--lr-font-size-body);
+
+  /* 左栏**顶天立地**（批注 6）：它跨第 2、3 两行，状态条从它右边起。 */
   grid-template-areas:
-    "top top top top top"
-    "nav list spine read inspector"
-    "status status status status status";
-  grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+    "top top top top"
+    "nav list read inspector"
+    "nav status status status";
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
 
   /* 顶栏 48 / 内容弹性 / 状态条 28（§3.1）。 */
   grid-template-rows: 48px minmax(0, 1fr) 28px;
@@ -66,20 +68,15 @@
   padding: 0 var(--lr-space-12);
 }
 
-/* 栏位预算是固定的：导航条 72 / 列表栏 242 / 脊柱 88 / 检视器 232（§3.1）。 */
+/* 栏位预算：导航条 56 / 列表栏 242 / 检视器 232（§3.1 2026-10-17 收窄导航条）。 */
 .lr-shell__nav {
   grid-area: nav;
-  width: 72px;
+  width: 56px;
 }
 
 .lr-shell__list {
   grid-area: list;
   width: 242px;
-}
-
-.lr-shell__spine {
-  grid-area: spine;
-  width: 88px;
 }
 
 .lr-shell__read {
@@ -153,8 +150,8 @@
   cursor: pointer;
   display: flex;
 
-  /* 纯图标方块（§3.1 2026-10-17）：48 高、图标居中，没有文字。 */
-  height: calc(var(--lr-space-40) + var(--lr-space-8));
+  /* 纯图标方块（§3.1 2026-10-17）：40 高、20 的图标居中，没有文字。 */
+  height: var(--lr-space-40);
   justify-content: center;
   transition: background-color var(--lr-dur-fast) var(--lr-ease);
   width: 100%;
@@ -282,20 +279,25 @@
   padding: 0;
 }
 
+/*
+ * 条目是**椭圆长条按钮**（批注 4）：两端内缩、整条圆角，不再贴满整列。
+ * 选中不再用左侧 2.5px 强调条 —— 圆角会把那条线切弯；改为填充抬一级 + 文字加重，
+ * 两路并行（§7.3：状态不靠单一通道）。
+ */
 .lr-list__item {
   background: transparent;
-
-  /* 选中条的位置先占住（透明），免得选中时整行文字跳一下。 */
-  border-inline-start: 2.5px solid transparent;
+  border: 0;
+  border-radius: calc(var(--lr-space-32) / 2);
   color: var(--lr-text-muted);
   cursor: pointer;
   display: block;
   font-family: inherit;
   font-size: var(--lr-font-size-meta);
-  padding: var(--lr-space-8) var(--lr-space-16);
+  margin: 0 var(--lr-space-8);
+  padding: var(--lr-space-8) var(--lr-space-12);
   text-align: start;
   transition: background-color var(--lr-dur-fast) var(--lr-ease);
-  width: 100%;
+  width: calc(100% - var(--lr-space-16));
 }
 
 .lr-list__item:disabled {
@@ -306,8 +308,8 @@
 /* 选中项：左侧 2.5px 强调条 + surface-raised 底（§3.1、§4.2 逐字）。 */
 .lr-list__item[aria-current="true"] {
   background: var(--lr-surface-raised);
-  border-inline-start-color: var(--lr-accent);
   color: var(--lr-text);
+  font-weight: 600;
 }
 
 .lr-list__item:hover:not(:disabled) {
@@ -403,28 +405,18 @@
   min-width: 0;
 }
 
-.lr-read__header {
-  align-items: center;
-  border-bottom: 1px solid var(--lr-border);
-  display: flex;
-  gap: var(--lr-space-12);
-  padding: var(--lr-space-20) var(--lr-space-32);
-}
-
-/* 返回列表只在单栏（<820px）下出现，见文件末尾的媒体查询。 */
+/* 返回列表只在单栏（<820px）下出现，见文件末尾的媒体查询；浮在左上角，不占一行。 */
 .lr-read__back {
   display: none;
+  inset-block-start: var(--lr-space-12);
+  inset-inline-start: var(--lr-space-12);
+  position: absolute;
 }
 
-.lr-read__title {
-  color: var(--lr-text-strong);
-  font-size: var(--lr-font-size-title);
-  line-height: var(--lr-line-tight);
-  font-weight: 600;
-  margin: 0;
-}
-
-/* 正文 58ch（§3.1）：窗口再宽也是留白增长，不是行宽增长。 */
+/*
+ * 读面没有头部（批注 2）：不占编辑器顶部，那条横线也撤了，所以这里自己给顶上留白。
+ * 正文 58ch（§3.1）：窗口再宽也是留白增长，不是行宽增长。
+ */
 .lr-read__body {
   /* 读面正文比界面正文大一档，行距 1.85（ui.md §4.5）。 */
   flex: 1;
@@ -434,6 +426,7 @@
   max-width: var(--lr-measure);
   overflow-y: auto;
   padding: var(--lr-space-32);
+  padding-top: var(--lr-space-24);
   width: 100%;
 }
 
@@ -539,20 +532,15 @@
   .lr-shell {
     grid-template-areas:
       "top top"
-      "nav spine"
       "nav main"
-      "status status";
+      "nav status";
     grid-template-columns: 48px minmax(0, 1fr);
-    grid-template-rows: 48px auto minmax(0, 1fr) 28px;
+    grid-template-rows: 48px minmax(0, 1fr) 28px;
   }
 
   .lr-shell__list,
   .lr-shell__read {
     grid-area: main;
-  }
-
-  .lr-shell__spine {
-    width: auto;
   }
 
   /* 互斥：一次只在前台放一个。 */
@@ -562,10 +550,6 @@
   }
 
   /* 脊柱讲的是正文的版本，所以只在读面出现。 */
-  .lr-shell[data-pane="list"] .lr-shell__spine {
-    display: none;
-  }
-
   .lr-read__back {
     display: inline-flex;
   }

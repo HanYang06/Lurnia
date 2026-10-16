@@ -79,17 +79,18 @@ const INTERACTIVE: { file: string; rules: StateRule[] }[] = [
       { label: "列表项 disabled", pattern: /\.lr-list__item:disabled/ },
       { label: "列表项选中态", pattern: /\.lr-list__item\[aria-current="true"\]/ },
       {
-        label: "选中项的 2.5px 强调条（§3.1）",
-        pattern:
-          /\.lr-list__item\[aria-current="true"\]\s*\{[^}]*border-inline-start-color:\s*var\(--lr-accent\)/,
-      },
-      {
-        label: "选中项的 surface-raised 底（§4.2）",
+        label: "选中项：椭圆长条的填充（§4.2）",
         pattern:
           /\.lr-list__item\[aria-current="true"\]\s*\{[^}]*background:\s*var\(--lr-surface-raised\)/,
       },
-      // 选中条的占位：不占住位置的话，选中时整行文字会跳一下。
-      { label: "选中条占位 2.5px", pattern: /border-inline-start:\s*2\.5px/ },
+      {
+        label: "选中项：文字同时加重（两路并行，不靠单一通道）",
+        pattern: /\.lr-list__item\[aria-current="true"\]\s*\{[^}]*font-weight:\s*600/,
+      },
+      {
+        label: "条目是椭圆长条（批注 4）",
+        pattern: /\.lr-list__item\s*\{[^}]*border-radius:\s*calc\(/,
+      },
     ],
   },
 ];
@@ -168,10 +169,9 @@ describe("ui.md §3.3：收窄顺序必须是「先检视器，再列表，最�
     expect(single).toBeGreaterThan(list);
   });
 
-  it("≥820px 时不折叠脊柱（它是签名元素，也是 I5 的可视证据）", () => {
-    // 「脊柱不折叠」= 1180 与 1000 两个断点里都不许出现把它藏起来的规则。
-    const beforeSingle = shell.slice(0, shell.indexOf("@media (width < 820px)"));
-    expect(beforeSingle).not.toMatch(/\.lr-shell__spine\s*\{[^}]*display:\s*none/);
+  it("脊柱不占全局列（批注 1：空的时候它把动线劈成两半）", () => {
+    expect(shell).not.toMatch(/\.lr-shell__spine/);
+    expect(shell).not.toMatch(/"nav list spine/);
   });
 
   it("正文限制用 --lr-measure（§3.1 的 58ch）", () => {
@@ -184,14 +184,14 @@ describe("ui.md §3.3：收窄顺序必须是「先检视器，再列表，最�
     expect(single).toMatch(/flex-direction:\s*row/);
   });
 
-  it("栏位预算就是 §3.1 的 72 / 242 / 88 / 232，状态条 28", () => {
-    expect(shell).toMatch(/\.lr-shell__nav\s*\{[^}]*width:\s*72px/);
+  it("栏位预算：导航条 56 / 列表栏 242 / 检视器 232，状态条 28", () => {
+    expect(shell).toMatch(/\.lr-shell__nav\s*\{[^}]*width:\s*56px/);
     expect(shell).toMatch(/\.lr-shell__list\s*\{[^}]*width:\s*242px/);
-    expect(shell).toMatch(/\.lr-shell__spine\s*\{[^}]*width:\s*88px/);
     expect(shell).toMatch(/\.lr-shell__inspector\s*\{[^}]*width:\s*232px/);
-    // 顶栏 48 / 内容弹性 / 状态条 28（§3.1 2026-10-17：顶栏是新加的那一行）
+    // 顶栏 48 / 内容弹性 / 状态条 28（§3.1 2026-10-17）
     expect(shell).toMatch(/grid-template-rows:\s*48px\s*minmax\(0,\s*1fr\)\s*28px/);
-    expect(shell).toMatch(/@media \(width < 1180px\)/);
+    // 左栏顶天立地（批注 6）：nav 同时出现在内容行与状态条行
+    expect(shell).toMatch(/"nav\s+status/);
   });
 });
 
