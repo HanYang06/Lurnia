@@ -23,15 +23,14 @@ from __future__ import annotations
 
 import hashlib
 import mimetypes
-import os
 import re
 import sqlite3
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from lurnia.core.storage.errors import AttachmentError
+from lurnia.core.storage.files import write_atomic
 
 if TYPE_CHECKING:
     from lurnia.core.storage import Database
@@ -112,11 +111,11 @@ class AttachmentStore:
         if existing is not None:
             path = self.body_path(existing)
             if not path.is_file():
-                self._write_body(path, data)
+                write_atomic(path, data)
             return self.retain(digest)
 
         path = self.path_for(digest, suffix=suffix_of(name))
-        created = self._write_body(path, data)
+        created = write_atomic(path, data)
         try:
             return self._insert(digest, len(data), _guess_mime(name), name)
         except BaseException:
@@ -188,26 +187,6 @@ class AttachmentStore:
             return True
 
     # ---- 内部 -----------------------------------------------------------
-
-    def _write_body(self, path: Path, data: bytes) -> bool:
-        """原子落盘。返回是否**新建**了本体（已存在则不动它）。"""
-        if path.is_file():
-            return False
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handle_fd, temp_name = tempfile.mkstemp(
-            dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-        )
-        temp = Path(temp_name)
-        try:
-            with os.fdopen(handle_fd, "wb") as handle:
-                handle.write(data)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temp, path)
-        except BaseException:
-            temp.unlink(missing_ok=True)
-            raise
-        return True
 
     def _insert(
         self, digest: str, size: int, mime: str | None, name: str

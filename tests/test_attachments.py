@@ -277,7 +277,7 @@ def test_a_failed_replace_leaves_neither_body_nor_temp_file(
     def boom(*_args: object, **_kwargs: object) -> None:
         raise OSError("no space left")
 
-    monkeypatch.setattr("lurnia.core.storage.attachments.os.replace", boom)
+    monkeypatch.setattr("lurnia.core.storage.files.os.replace", boom)
     with pytest.raises(OSError, match="no space left"):
         store.put(DATA, name="a.png")
 

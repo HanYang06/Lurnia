@@ -34,7 +34,14 @@ from typing import TYPE_CHECKING, Any
 
 from lurnia.core import conf, log
 from lurnia.core.bus import Bus
-from lurnia.core.storage import AttachmentStore, Database, append_event, open_db
+from lurnia.core.storage import (
+    AttachmentStore,
+    Database,
+    Rotation,
+    append_event,
+    open_db,
+    rotate_event_log,
+)
 
 if TYPE_CHECKING:
     from lurnia.core.contracts import EventEnvelope, Guard, Subject, Transport
@@ -42,11 +49,13 @@ if TYPE_CHECKING:
 APP_DIR = "Lurnia"
 DATABASE_NAME = "lurnia.db"
 ATTACHMENTS_DIR = "attachments"
+EVENT_LOG_DIR = "event-log"
 
 __all__ = [
     "APP_DIR",
     "ATTACHMENTS_DIR",
     "DATABASE_NAME",
+    "EVENT_LOG_DIR",
     "Core",
     "Paths",
     "assemble",
@@ -57,11 +66,12 @@ __all__ = [
 
 @dataclass(frozen=True, slots=True)
 class Paths:
-    """一台核心的数据落点。三个路径同源，用户可整体备份、整体搬走。"""
+    """一台核心的数据落点。四个路径同源，用户可整体备份、整体搬走。"""
 
     home: Path
     database: Path
     attachments: Path
+    event_log: Path
 
 
 def data_home() -> Path:
@@ -82,12 +92,13 @@ def data_home() -> Path:
 
 
 def default_paths(home: str | Path) -> Paths:
-    """一个 home 下的三个落点：库、附件库，以及 home 自己。"""
+    """一个 home 下的四个落点：库、附件库、事件日志归档目录，以及 home 自己。"""
     resolved = Path(home).expanduser()
     return Paths(
         home=resolved,
         database=resolved / DATABASE_NAME,
         attachments=resolved / ATTACHMENTS_DIR,
+        event_log=resolved / EVENT_LOG_DIR,
     )
 
 
@@ -181,6 +192,17 @@ class Core:
                 yield conn
             finally:
                 self._state.tx = None
+
+    # ---- 事件日志轮转（路线 004） ---------------------------------------
+
+    def rotate_event_log(self, *, keep: int) -> Rotation:
+        """把最旧的事件归档到 `paths.event_log`，再从库里删掉。
+
+        **不自动触发**：在 append 路径上顺手删别的日志是 I5 最不该有的惊喜，
+        所以由宿主在启动时显式调用（路线 009），`keep` 由配置给。口径见
+        [event-log.md](../../docs/design/event-log.md)。
+        """
+        return rotate_event_log(self._db, self._paths.event_log, keep=keep)
 
     # ---- 生命周期 -------------------------------------------------------
 

@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from lurnia.core.contracts import EventEnvelope, Subject
 from lurnia.core.ddl import highest_version, read_schema, snapshot_statements
 from lurnia.core.storage.attachments import (
     BLOB_THRESHOLD,
@@ -36,6 +37,7 @@ from lurnia.core.storage.attachments import (
     suffix_of,
 )
 from lurnia.core.storage.errors import AttachmentError, StorageError
+from lurnia.core.storage.files import write_atomic
 
 SCHEMA_VERSION = 2  # 内核 schema 当前目标版本；必须等于 DDL 文件里的最大版本
 PAGE_SIZE = 8192  # storage.md §二：8192 命中 SQLite 官方建议区间
@@ -63,12 +65,14 @@ __all__ = [
     "AttachmentStore",
     "Database",
     "Migration",
+    "Rotation",
     "StorageError",
     "append_event",
     "check_drift",
     "fits_in_database",
     "open_db",
     "read_events",
+    "rotate_event_log",
     "schema_drift",
     "suffix_of",
 ]
@@ -436,3 +440,77 @@ def read_events(db: Database, *, topic: str | None = None) -> Sequence[sqlite3.R
 
 def _dump_payload(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+# ---- 轮转（路线 004） ----------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Rotation:
+    """一次轮转的结果：归档了几条、库里还剩几条、归档写到哪。"""
+
+    archived: int
+    remaining: int
+    path: Path | None
+
+
+def rotate_event_log(db: Database, archive_dir: str | Path, *, keep: int) -> Rotation:
+    """把最旧的事件归档成 JSONL，再从库里删掉（路线 004，口径见 event-log.md）。
+
+    顺序是硬要求：**先归档、`fsync` 落盘，再删行**。任何一步失败都不许少数据
+    —— 宁可多一份归档，也不许出现「日志里没有、归档里也没有」。
+    归档文件已存在时**报错而不覆盖**：那多半意味着上次删行没成功。
+
+    :param keep: 保留**最新**多少条；`0` 表示全部归档（慎用）。
+    """
+    if keep < 0:
+        msg = f"保留条数不能是负数：{keep}"
+        raise StorageError(msg)
+    rows = db.connection.execute(
+        "SELECT seq, id, topic, subject_id, subject_kind, cause, ts_wall, ts_mono, "
+        "payload, version FROM event_log ORDER BY seq"
+    ).fetchall()
+    total = len(rows)
+    if total <= keep:
+        return Rotation(archived=0, remaining=total, path=None)
+
+    doomed = rows[: total - keep]
+    last_seq = int(doomed[-1]["seq"])
+    path = Path(archive_dir) / _archive_name(int(doomed[0]["seq"]), last_seq)
+    payload = b"".join(_to_wire(row) + b"\n" for row in doomed)
+
+    if not write_atomic(path, payload):
+        msg = (
+            f"归档文件已存在，拒绝覆盖：{path}"
+            "（多半是上次删行没成功；确认后手工挪走再重跑）"
+        )
+        raise StorageError(msg)
+    try:
+        with db.transaction() as conn:
+            conn.execute("DELETE FROM event_log WHERE seq <= ?", (last_seq,))
+    except BaseException:
+        # 删行没成 -> 本次刚写的归档必须撤掉，否则重跑会撞上「已存在」
+        path.unlink(missing_ok=True)
+        raise
+    return Rotation(archived=len(doomed), remaining=keep, path=path)
+
+
+def _archive_name(first: int, last: int) -> str:
+    """`seq` 补零到 12 位，方便目录里按名字排序。"""
+    return f"event-log-{first:012d}-{last:012d}.jsonl"
+
+
+def _to_wire(row: sqlite3.Row) -> bytes:
+    """把一行事件日志还原成封套的 wire 字节（I8：只允许一种序列化）。"""
+    envelope = EventEnvelope(
+        topic=row["topic"],
+        subject=Subject(id=row["subject_id"], kind=row["subject_kind"]),
+        payload=json.loads(row["payload"]),
+        id=row["id"],
+        seq=row["seq"],
+        ts_wall=row["ts_wall"],
+        ts_mono=row["ts_mono"],
+        cause=row["cause"],
+        version=row["version"],
+    )
+    return envelope.to_wire()

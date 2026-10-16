@@ -26,6 +26,7 @@ from lurnia.assembly import (
     APP_DIR,
     ATTACHMENTS_DIR,
     DATABASE_NAME,
+    EVENT_LOG_DIR,
     Core,
     assemble,
     data_home,
@@ -121,11 +122,12 @@ def core(tmp_path: pathlib.Path) -> Iterator[Core]:
 # --------------------------------------------------------------------------
 
 
-def test_default_paths_keep_both_stores_under_one_home(tmp_path: pathlib.Path) -> None:
+def test_default_paths_keep_everything_under_one_home(tmp_path: pathlib.Path) -> None:
     paths = default_paths(tmp_path)
     assert paths.home == tmp_path
     assert paths.database == tmp_path / DATABASE_NAME
     assert paths.attachments == tmp_path / ATTACHMENTS_DIR
+    assert paths.event_log == tmp_path / EVENT_LOG_DIR
 
 
 def test_default_paths_expand_a_user_home() -> None:
@@ -387,6 +389,25 @@ def test_assemble_keeps_the_transport_it_was_given(tmp_path: pathlib.Path) -> No
     core = assemble(tmp_path, bind_config=False, transport=transport)
     try:
         assert core.bus.transport is transport
+    finally:
+        core.close()
+
+
+def test_core_rotates_the_event_log_into_the_data_home(tmp_path: pathlib.Path) -> None:
+    core = assemble(tmp_path, bind_config=False)
+    try:
+        with core.change("t", {"i": 0}, subject=SUBJECT) as tx:
+            tx.execute("CREATE TABLE t (i INTEGER)")
+        with core.change("t", {"i": 1}, subject=SUBJECT) as tx:
+            tx.execute("INSERT INTO t (i) VALUES (1)")
+
+        result = core.rotate_event_log(keep=1)
+
+        assert result.archived == 1
+        assert result.path is not None
+        assert result.path.parent == core.paths.event_log
+        assert result.path.parent == tmp_path / EVENT_LOG_DIR
+        assert _event_count(core) == 1
     finally:
         core.close()
 
