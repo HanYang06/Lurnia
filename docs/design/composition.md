@@ -88,5 +88,8 @@ Core.change(topic, payload, ...)  # 先写日志，再把事务交给调用方�
 1. **调用平面请求/回复的 trace 形状**（路线 010）。`bus.md` §五 说「落调用平面的
    请求与回复」，但没有定封套形状：一条封套载请求+回复，还是请求、回复各一条？
    `seq` 怎么对齐？裁定前 `Core` 不自动落 `invoke`，只在事务外 `record()` 留口。
-2. **宿主怎么把数据目录交给 sidecar**（路线 009/105）。`--data-dir` 参数、环境
-   变量，还是 Tauri 侧按同一口径推导？三者在 `packaging.md` §六 下都成立，需选一个。
+
+> **已定（2026-10-16）**：原先的第 2 条「宿主怎么把数据目录交给 sidecar」已裁定 ——
+> 核心默认走平台口径、**宿主不传**，`--data-dir` 与 `LURNIA_DATA_DIR` 只作测试与
+> 便携安装的覆盖口。口径落在 [packaging.md §五](packaging.md)，代码落在
+> [`src/lurnia/sidecar.py`](../../src/lurnia/sidecar.py)。

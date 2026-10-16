@@ -38,6 +38,8 @@ Lurnia 当前没有发布 1.0 的必要，不承诺 1.0——不是「永不发 
 | [bus.md](bus.md) | 模块之间怎么说话（两平面 + 事件封套） |
 | [storage.md](storage.md) | 数据落哪、二进制落哪（双库 + 100KB 阈值） |
 | [packaging.md](packaging.md) | APP 怎么打出来（Tauri 宿主 + Python sidecar） |
+| [event-log.md](event-log.md) | 事件日志怎么轮转（归档后裁剪，只在归档落盘后才删行） |
+| [composition.md](composition.md) | 四层怎么装成一台能跑的核心（组合根、I5 的接线、数据目录） |
 | [ui.md](ui.md) | 界面长什么样：审美主张、配色、布局、标识、无障碍 |
 | [ui-review-2026-10-16.md](ui-review-2026-10-16.md) | 对 [ui.md](ui.md) 的评审与候选（**评审结论，非事实来源**；裁定前 ui.md 不变） |
 | [proposals/logo.md](proposals/logo.md) | 标识候选方案（**未裁定**）：形态比较、撞车检查、质感手法、动画参数 |

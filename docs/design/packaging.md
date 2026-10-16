@@ -58,6 +58,33 @@ sidecar 是**宿主拉起自己的核心**，属 APP 内部实现。按 I9 修�
 
 **不引本地套接字**：既然已经有一个 sidecar 进程，用它的 stdio 就够了，多开一个监听端口反而触 I9 红线。
 
+### stdio 行协议（v1，2026-10-16 定）
+
+<a id="r009"></a>
+
+一行一个 JSON 对象，用 `type` 区分。**内核 → UI 只有这一条通道**：
+
+| `type` | 什么时候出 | 关键字段 |
+| --- | --- | --- |
+| `ready` | 核心装配完成后，**第一行** | `protocol` / `version` / `data_dir` / `frozen` / `rotated` |
+| `event` | 广播平面每出一条 | `envelope`：**封套原样嵌进来** |
+| `error` | 起不来、参数不认、配置坏了 | `message`；退出码非 0 |
+| `version` / `self-check` | 对应参数 | 见 `--version` / `--self-check` |
+
+封套不重新发明字段名，`{"type":"event","protocol":1,"envelope":{…}}` 里的 `envelope`
+就是 `EventEnvelope` 自己的字段（不变量 I8）。宿主先等 `ready`，再认 `event`；
+`ready` 之前到的事件一律丢弃。
+
+**数据目录**：核心默认走平台口径（§六），宿主**不传**；`--data-dir <path>` 或环境变量
+`LURNIA_DATA_DIR` 可覆盖 —— 这是给测试与便携安装留的口，不是给宿主日常用的。
+
+**stdin（v1 不解析）**：宿主 → 内核的请求走 Tauri IPC（上表），不走 stdio。所以
+sidecar 只等 stdin 关闭（EOF）就退出：生命周期由宿主掌握，宿主没了核心不会变孤儿。
+
+**为什么 `ready` 必须是第一行**：宿主按行读，第一行没到之前它不知道核心是在解压、
+在建库，还是已经死了。把「已就绪」显式说出来，UI 才能区分「核心没起来」与
+「核心起来了但还没有事件」。
+
 ## 六、数据放哪
 
 `sys.executable` 在 PyInstaller 单文件模式下指向**临时解包目录**，不是安装目录。所以数据路径**绝不能**由 `__file__` 或 `sys.executable` 推导：
