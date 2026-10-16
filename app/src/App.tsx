@@ -15,7 +15,6 @@ import { useEffect, useState, type ChangeEvent } from "react";
 
 import { Gallery } from "./panels/Gallery";
 import {
-  Button,
   EmptyState,
   Select,
   StateBadge,
@@ -44,6 +43,7 @@ import {
   ReadPane,
   SettingsIcon,
   Shell,
+  UserIcon,
   type ListEntry,
   type NavModule,
   type ShellLayout,
@@ -74,34 +74,14 @@ const SETTINGS: NavModule = { id: "settings", label: "设置", icon: <SettingsIc
  * 模块名与它们的空态文案。三段分开写是有意的：**为什么空**与**将来长出什么**
  * 是两件事，混成一句就变成了一行灰字 —— 那看起来像是界面坏了。
  */
-const MODULE_COPY: Record<string, { title: string; why: string; next: string }> = {
-  notes: {
-    title: "笔记",
-    why: "这个模块的界面还没接：它要等 doc 能力的读接口（列文档、取正文、取版本链）从内核侧露出来。",
-    next: "接上之后，列表栏会是文档集合，中间的脊柱会是当前文档的版本时间线。",
-  },
-  projects: {
-    title: "项目",
-    why: "项目与文档的归属关系还没有调用平面接口。",
-    next: "接上之后，列表栏会是项目集合，检视器会是成员与关联文档。",
-  },
-  permissions: {
-    title: "权限",
-    why: "权限判定还没有可以在界面上展示的数据源。",
-    next: "它会用到 StateBadge —— 判定是三态（allow / deny / uncertain），界面不许把它压成布尔（I2）。",
-  },
-  ai: {
-    title: "AI",
-    why: "AI 模块还没做。",
-    next: "按 I9，任何对外动作都必须由用户显式发起，所以这里将来也不会出现「自动联网」这类按钮。",
-  },
+const MODULE_COPY: Record<string, { title: string; short: string }> = {
+  notes: { title: "笔记", short: "等内核把文档的读接口露出来。" },
+  projects: { title: "项目", short: "等项目与文档的归属接口。" },
+  permissions: { title: "权限", short: "等权限判定的数据源。" },
+  ai: { title: "AI", short: "还没做。按 I9，对外动作都得由用户显式发起。" },
 };
 
-const SETTINGS_COPY = {
-  title: "设置",
-  why: "设置里还没有可改的东西。",
-  next: "主题切换是现在唯一一项，在「外观」里。",
-};
+const SETTINGS_COPY = { title: "设置", short: "主题切换在「外观」里。" };
 
 const SETTINGS_ENTRIES: readonly ListEntry[] = [
   { id: "appearance", label: "外观" },
@@ -231,9 +211,6 @@ function App() {
           <p className="note">
             <Tag>本地</Tag>
           </p>
-          <p className="note">
-            数据只在本机。按 I9，界面不会自己联网、开端口或拉起第三方程序。
-          </p>
         </Inspector>
       }
       layout={layout}
@@ -241,12 +218,9 @@ function App() {
         <ListPane
           active={entry}
           empty={
-            keyword.length > 0
-              ? `没有匹配「${query.trim()}」的条目。`
-              : isSettings
-                ? "这个模块没有条目。"
-                : "还没有条目。等内核把列文档的接口露出来，这里就会是笔记 / 项目 / 权限判定的集合。"
+            keyword.length > 0 ? `没有匹配「${query.trim()}」的条目。` : "还没有条目。"
           }
+          createHint="还没有文档写入接口（doc 能力未接）"
           entries={entries}
           label={isSettings ? "设置" : copy.title}
           onCollapse={() => {
@@ -283,9 +257,14 @@ function App() {
       top={
         <TopBar
           action={
-            <Button disabled title="还没有文档写入接口（doc 能力未接）">
-              新建
-            </Button>
+            <button
+              aria-label="账户"
+              className="lr-avatar"
+              title="账户 —— 身份来自内核的 Subject（I6）"
+              type="button"
+            >
+              <UserIcon />
+            </button>
           }
           onQueryChange={setQuery}
           query={query}
@@ -389,10 +368,8 @@ function App() {
       );
     }
 
-    // 空态是三段：这是什么、为什么空、将来长出什么。一行灰字看起来像界面坏了。
-    return (
-      <EmptyState next={copy.next} title={`${copy.title}还没有内容`} why={copy.why} />
-    );
+    // §1.0 精简：空态只留一句。为什么空、将来长出什么属于文档，不属于界面。
+    return <EmptyState title={`${copy.title}还没有内容`} why={copy.short} />;
   }
 }
 

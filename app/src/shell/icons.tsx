@@ -95,3 +95,22 @@ export function PanelIcon() {
     </Glyph>
   );
 }
+
+/** 新建：一个加号。**不用文字** —— §1.0「能用符号说清就不写字」。 */
+export function PlusIcon() {
+  return (
+    <Glyph>
+      <path d="M8 3.5v9M3.5 8h9" />
+    </Glyph>
+  );
+}
+
+/** 账户：右上角那个头像位。还没有账户系统，所以先画一个通用的人形。 */
+export function UserIcon() {
+  return (
+    <Glyph>
+      <circle cx="8" cy="6" r="2.6" />
+      <path d="M3.4 13c.6-2.2 2.4-3.4 4.6-3.4S12 10.8 12.6 13" />
+    </Glyph>
+  );
+}

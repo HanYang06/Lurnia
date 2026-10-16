@@ -197,6 +197,28 @@ Investigation is allowed when a specific missing fact blocks the next step. It i
 - A report **should** separate what was verified from what was assumed.
 - Adjacent problems **may** be mentioned; they **must not** be silently fixed as part of the requested change.
 
-### 6.5 Stop rule
+### 6.5 Writing UI in this repository
+
+The UI has three core principles, stated by the maintainer and **normative**:
+**留白（whitespace）、精简（minimal）、非必要不动（do not add what is not needed）**.
+They live in [`docs/design/ui.md` §1.0](docs/design/ui.md), which ranks them above the rest of
+that document. Read them before touching anything under `app/`.
+
+They exist because the failure mode of an agent writing UI is always the same: **adding**.
+A box to look complete, a sentence to look thorough, an animation to look polished. So:
+
+- **A pixel that can be deleted without losing information or hierarchy must be deleted.**
+- **A sentence that can be deleted while leaving the path walkable must be deleted.**
+- Symbols over text. Structure over symbols. Whitespace over structure.
+- Do not add borders, shadows, animations or ornament to a region that is not carrying
+  information. State changes (hover / press / disabled) are not ornament; decoration is.
+- When unsure whether something is needed, leave it out and say so — the maintainer will ask
+  for it if they want it.
+
+This applies to the agent's own inventions too: the empty-state essays, the panel title plates
+and the status-bar toggles were all written by an agent, and all three have since been removed
+under this rule. Do not reintroduce them.
+
+### 6.6 Stop rule
 
 - When the requested deliverable exists and the quality gates in §5 pass, the agent **must** stop. "While I was in there" refactors are out of scope unless asked for.

@@ -27,6 +27,7 @@ export {
   PermissionIcon,
   ProjectIcon,
   SettingsIcon,
+  UserIcon,
 } from "./icons";
 
 export { useMediaQuery } from "./useMediaQuery";

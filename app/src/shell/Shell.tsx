@@ -23,7 +23,7 @@
 import { useState, type ReactNode } from "react";
 
 import { Button, Input } from "../components";
-import { PanelIcon } from "./icons";
+import { PanelIcon, PlusIcon } from "./icons";
 import "./Shell.css";
 import { useMediaQuery } from "./useMediaQuery";
 
@@ -127,6 +127,8 @@ export function ListPane({
   active,
   onSelect,
   onCollapse,
+  onCreate,
+  createHint,
   empty,
 }: {
   label: string;
@@ -134,12 +136,25 @@ export function ListPane({
   active: string | null;
   onSelect: (id: string) => void;
   onCollapse: () => void;
+  /** 有 doc 写入接口之后传进来；没有就渲染成禁用的「+」（§1.0：符号优先）。 */
+  onCreate?: () => void;
+  createHint?: string;
   empty: string;
 }) {
   return (
     <div aria-label={label} className="lr-list" role="group">
-      {/* 折叠钮在本栏右上角（§3.1 2026-10-17：不再占用状态条的黄金位）。 */}
+      {/* 头行：左边「+」新建，右边「«」收起（§3.1 2026-10-17）。 */}
       <div className="lr-list__head">
+        <button
+          aria-label="新建"
+          className="lr-list__create"
+          disabled={!onCreate}
+          onClick={onCreate}
+          title={createHint ?? "新建"}
+          type="button"
+        >
+          <PlusIcon />
+        </button>
         <button
           aria-label="收起列表"
           className="lr-list__collapse"

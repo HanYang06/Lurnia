@@ -58,12 +58,12 @@ describe("没有数据的地方写空态，不写假数据", () => {
     expect(html).toContain("还没有版本记录");
   });
 
-  it("笔记模块的空态讲清楚「为什么空」与「将来长出什么」", () => {
+  it("空态只留一句（§1.0 精简）", () => {
     expect(html).toContain("笔记还没有内容");
-    expect(html).toContain("doc 能力的读接口");
-    // 三段式：只有一行灰字的空面板看起来像是界面坏了。
     expect(html).toContain("lr-empty__why");
-    expect(html).toContain("lr-empty__next");
+    // 「将来长出什么」那段小作文已经删掉，且不许回来
+    expect(html).not.toContain("lr-empty__next");
+    expect(html).not.toContain("doc 能力的读接口（列文档");
   });
 
   it("核心没起来时不编造版本号，只说在等", () => {
@@ -80,11 +80,19 @@ describe("顶栏与折叠钮各就各位（§3.1 2026-10-17 改版）", () => {
     expect(html).toContain("lr-field--hidden-label");
   });
 
-  it("折叠钮搬到了列表栏自己的右上角，不再占用状态条", () => {
+  it("折叠钮在列表栏右上角，新建是左端一个「+」（§1.0：符号优先）", () => {
     expect(html).toContain("lr-list__collapse");
     expect(html).toContain("收起列表");
+    // 新建是符号，不是文字按钮
+    expect(html).toContain("lr-list__create");
+    expect(html).toContain('aria-label="新建"');
     // 状态条上不该再有开关
     expect(html).not.toContain("lr-statusbar__chrome");
+  });
+
+  it("右上角是账户位，不是「新建」", () => {
+    expect(html).toContain("lr-avatar");
+    expect(html).toContain('aria-label="账户"');
   });
 
   it("导航是纯图标：图标不占可见文字，但名字给了读屏与悬停", () => {
