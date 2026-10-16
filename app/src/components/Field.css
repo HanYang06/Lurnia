@@ -24,7 +24,7 @@
 
 .lr-field__label {
   color: var(--lr-text-muted);
-  font-size: 12px;
+  font-size: var(--lr-font-size-caption);
 }
 
 .lr-input,
@@ -34,7 +34,7 @@
   border-radius: var(--lr-radius-md);
   color: var(--lr-text);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--lr-font-size-meta);
   min-height: var(--lr-space-24);
   padding: var(--lr-space-4) var(--lr-space-8);
   transition: border-color var(--lr-dur-fast) var(--lr-ease);

@@ -192,3 +192,30 @@ describe("ui.md §3.3：收窄顺序必须是「先检视器，再列表，最�
     expect(shell).toMatch(/grid-template-rows:\s*minmax\(0,\s*1fr\)\s*28px/);
   });
 });
+
+describe("ui.md §4.5：字号与行距只能走令牌", () => {
+  const cssFiles = [
+    ...readdirSync(path.join(srcDir, "components"))
+      .filter((name) => name.endsWith(".css"))
+      .map((name) => `components/${name}`),
+    ...readdirSync(path.join(srcDir, "shell"))
+      .filter((name) => name.endsWith(".css"))
+      .map((name) => `shell/${name}`),
+    "App.css",
+    "styles/base.css",
+  ];
+
+  for (const file of cssFiles) {
+    it(`${file} 没有裸字号`, () => {
+      // 10 / 11 / 12 / 13 / 14 / 16px 六个随手值就是这么长出来的；
+      // 文档 §4.5 定了五档，实现里就只能引用它们。
+      expect(readCss(file)).not.toMatch(/font-size:\s*[\d.]+(px|rem|em|pt)/);
+    });
+
+    it(`${file} 的行距要么走令牌，要么是 0 / 1 / inherit / normal`, () => {
+      for (const declaration of readCss(file).match(/line-height:\s*[^;]+/g) ?? []) {
+        expect(declaration).toMatch(/var\(--lr-line-|:\s*(0|1|inherit|normal)$/);
+      }
+    });
+  }
+});

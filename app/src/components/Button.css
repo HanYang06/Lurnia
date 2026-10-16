@@ -19,7 +19,7 @@
   cursor: pointer;
   display: inline-flex;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--lr-font-size-meta);
   gap: var(--lr-space-8);
   justify-content: center;
 

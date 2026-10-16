@@ -19,7 +19,7 @@
   background: var(--lr-bg);
   color: var(--lr-text);
   display: grid;
-  font-size: 14px;
+  font-size: var(--lr-font-size-body);
   grid-template-areas:
     "nav list spine read inspector"
     "status status status status status";
@@ -91,6 +91,13 @@
   flex: 1;
 }
 
+/* 设置是「关于这套工具」，不是第五个模块 —— 用一条线把它和模块分开。 */
+.lr-nav__foot {
+  border-block-start: 1px solid var(--lr-border);
+  margin-block-start: var(--lr-space-8);
+  padding-block-start: var(--lr-space-8);
+}
+
 .lr-nav__item {
   align-items: center;
   background: transparent;
@@ -101,8 +108,9 @@
   display: flex;
   flex-direction: column;
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--lr-font-size-caption);
   gap: var(--lr-space-4);
+  line-height: var(--lr-line-tight);
   padding: var(--lr-space-8) var(--lr-space-4);
   transition: background-color var(--lr-dur-fast) var(--lr-ease);
   width: 100%;
@@ -145,16 +153,17 @@
 
 .lr-list__title {
   color: var(--lr-text-muted);
-  font-size: 12px;
+  font-size: var(--lr-font-size-caption);
+  line-height: var(--lr-line-tight);
   font-weight: 600;
   margin: 0;
-  padding: var(--lr-space-16) var(--lr-space-16) var(--lr-space-8);
+  padding: var(--lr-space-20) var(--lr-space-16) var(--lr-space-12);
 }
 
 .lr-list__empty {
   color: var(--lr-text-faint);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--lr-font-size-caption);
+  line-height: var(--lr-line-body);
   margin: 0;
   padding: 0 var(--lr-space-16);
 }
@@ -176,7 +185,7 @@
   cursor: pointer;
   display: block;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--lr-font-size-meta);
   padding: var(--lr-space-8) var(--lr-space-16);
   text-align: start;
   transition: background-color var(--lr-dur-fast) var(--lr-ease);
@@ -213,12 +222,12 @@
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  padding: var(--lr-space-16) var(--lr-space-8);
+  padding: var(--lr-space-20) var(--lr-space-8);
 }
 
 .lr-spine__title {
   color: var(--lr-text-faint);
-  font-size: 11px;
+  font-size: var(--lr-font-size-caption);
   font-weight: 600;
   letter-spacing: 0.08em;
   margin: 0 0 var(--lr-space-12);
@@ -227,8 +236,8 @@
 
 .lr-spine__empty {
   color: var(--lr-text-faint);
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: var(--lr-font-size-caption);
+  line-height: var(--lr-line-body);
   margin: 0;
   text-align: center;
 }
@@ -276,7 +285,7 @@
 .lr-spine__label {
   color: var(--lr-text-muted);
   font-family: var(--lr-font-mono);
-  font-size: 11px;
+  font-size: var(--lr-font-size-caption);
 }
 
 .lr-spine__node[data-current="true"] .lr-spine__label {
@@ -285,7 +294,7 @@
 
 .lr-spine__stamp {
   color: var(--lr-text-faint);
-  font-size: 10px;
+  font-size: var(--lr-font-size-caption);
 }
 
 /* ------------------------------------------------------------------ 读面 */
@@ -302,7 +311,7 @@
   border-bottom: 1px solid var(--lr-border);
   display: flex;
   gap: var(--lr-space-12);
-  padding: var(--lr-space-16) var(--lr-space-24);
+  padding: var(--lr-space-20) var(--lr-space-32);
 }
 
 /* 返回列表只在单栏（<820px）下出现，见文件末尾的媒体查询。 */
@@ -312,18 +321,22 @@
 
 .lr-read__title {
   color: var(--lr-text-strong);
-  font-size: 16px;
+  font-size: var(--lr-font-size-title);
+  line-height: var(--lr-line-tight);
   font-weight: 600;
   margin: 0;
 }
 
 /* 正文 58ch（§3.1）：窗口再宽也是留白增长，不是行宽增长。 */
 .lr-read__body {
+  /* 读面正文比界面正文大一档，行距 1.85（ui.md §4.5）。 */
   flex: 1;
+  font-size: var(--lr-font-size-read);
+  line-height: var(--lr-line-read);
   margin: 0 auto;
   max-width: var(--lr-measure);
   overflow-y: auto;
-  padding: var(--lr-space-24);
+  padding: var(--lr-space-32);
   width: 100%;
 }
 
@@ -339,10 +352,10 @@
 
 .lr-inspector__title {
   color: var(--lr-text-muted);
-  font-size: 12px;
+  font-size: var(--lr-font-size-caption);
   font-weight: 600;
   margin: 0;
-  padding: var(--lr-space-16);
+  padding: var(--lr-space-20) var(--lr-space-16) var(--lr-space-12);
 }
 
 .lr-inspector__body {
@@ -358,7 +371,7 @@
   background: var(--lr-surface);
   border-top: 1px solid var(--lr-border);
   display: flex;
-  font-size: 11px;
+  font-size: var(--lr-font-size-caption);
   gap: var(--lr-space-12);
   grid-area: status;
   height: 28px;

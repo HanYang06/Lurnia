@@ -360,6 +360,7 @@ const DOC_RADIUS = docValueTable(/^### 4\.1\s/);
 const DOC_MOTION = docValueTable(/^### 4\.4\s/);
 const DOC_SPACING = docSpacingSteps();
 const DOC_FOCUS = docFocusRing();
+const DOC_TYPE = docValueTable(/^### 4\.5\s/);
 
 /** 把 §2.5 的三态并进颜色表：它们在同一个 CSS 块里，所以集合比对要一起算。 */
 function withTriStates(
@@ -463,6 +464,35 @@ describe("令牌层与 ui.md 逐格一致", () => {
       expect(normalizeValue(CSS_COMMON.get(name) ?? ""), `${name} 与 ui.md 不符`).toBe(
         normalizeValue(value),
       );
+    }
+  });
+
+  it("字号与行距令牌 = ui.md §4.5", () => {
+    expect(DOC_TYPE.size).toBeGreaterThan(0);
+    // 双向比对：文档里写了而 tokens.css 没有（或反过来）都算不一致。
+    expect([...DOC_TYPE.keys()].sort()).toEqual(
+      [...CSS_COMMON.keys()]
+        .filter(
+          (name) => name.startsWith("--lr-font-size-") || name.startsWith("--lr-line-"),
+        )
+        .sort(),
+    );
+    for (const [name, value] of DOC_TYPE) {
+      expect(CSS_COMMON.get(name), `tokens.css 缺 ${name}`).toBeDefined();
+      expect(normalizeValue(CSS_COMMON.get(name) ?? ""), `${name} 与 ui.md 不符`).toBe(
+        normalizeValue(value),
+      );
+    }
+  });
+
+  it("界面文字不得小于 12px（ui.md §4.5 的边界：中文小字会糊）", () => {
+    const sizes = [...DOC_TYPE].filter(([name]) => name.startsWith("--lr-font-size-"));
+    expect(sizes.length).toBeGreaterThanOrEqual(5);
+    for (const [name, value] of sizes) {
+      expect(
+        Number.parseFloat(value),
+        `${name} = ${value} 太小了`,
+      ).toBeGreaterThanOrEqual(12);
     }
   });
 

@@ -25,6 +25,17 @@
     system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
   --lr-font-mono: ui-monospace, "Cascadia Mono", consolas, "Courier New", monospace;
 
+  /* 字号与行距（ui.md §4.5）。这一节是 2026-10-17 补进文档的 —— 此前文档没定字号，
+     实现里就长出了六个随手值。只有这五档，界面文字不得小于 12px。 */
+  --lr-font-size-caption: 12px;
+  --lr-font-size-meta: 13px;
+  --lr-font-size-body: 14px;
+  --lr-font-size-read: 16px;
+  --lr-font-size-title: 20px;
+  --lr-line-tight: 1.35;
+  --lr-line-body: 1.6;
+  --lr-line-read: 1.85;
+
   /* 正文行宽上限（ui.md §3.1）：中文约 29 字。窗口拉宽时留白增长，行宽不增长。 */
   --lr-measure: 58ch;
 

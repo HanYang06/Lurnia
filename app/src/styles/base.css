@@ -24,8 +24,8 @@ body {
   background: var(--lr-bg);
   color: var(--lr-text);
   font-family: var(--lr-font-sans);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--lr-font-size-body);
+  line-height: var(--lr-line-body);
   -webkit-font-smoothing: antialiased;
 }
 
