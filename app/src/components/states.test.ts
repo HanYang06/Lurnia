@@ -189,7 +189,9 @@ describe("ui.md §3.3：收窄顺序必须是「先检视器，再列表，最�
     expect(shell).toMatch(/\.lr-shell__list\s*\{[^}]*width:\s*242px/);
     expect(shell).toMatch(/\.lr-shell__spine\s*\{[^}]*width:\s*88px/);
     expect(shell).toMatch(/\.lr-shell__inspector\s*\{[^}]*width:\s*232px/);
-    expect(shell).toMatch(/grid-template-rows:\s*minmax\(0,\s*1fr\)\s*28px/);
+    // 顶栏 48 / 内容弹性 / 状态条 28（§3.1 2026-10-17：顶栏是新加的那一行）
+    expect(shell).toMatch(/grid-template-rows:\s*48px\s*minmax\(0,\s*1fr\)\s*28px/);
+    expect(shell).toMatch(/@media \(width < 1180px\)/);
   });
 });
 

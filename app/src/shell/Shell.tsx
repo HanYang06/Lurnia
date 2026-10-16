@@ -22,7 +22,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { Button } from "../components";
+import { Button, Input } from "../components";
 import { PanelIcon } from "./icons";
 import "./Shell.css";
 import { useMediaQuery } from "./useMediaQuery";
@@ -33,7 +33,11 @@ export type NavModule = {
   icon: ReactNode;
 };
 
-/** 导航条：图标 + 文字（§3.1：纯图标是桌面工具最常见的傲慢）。 */
+/**
+ * 导航条：**纯图标**（§3.1 2026-10-17 改版）。旧版是「图标 + 文字」，理由是纯图标
+ * 要求用户悬停才知道是什么 —— 那个代价没有消失，只是被接受了。所以这里：
+ * `aria-label` 给读屏、`title` 给鼠标用户，且图标本身必须画得能自解释。
+ */
 export function NavRail({
   modules,
   active,
@@ -49,16 +53,17 @@ export function NavRail({
     <li key={module.id}>
       <button
         aria-current={module.id === active ? "page" : undefined}
+        aria-label={module.label}
         className="lr-nav__item"
         onClick={() => {
           onSelect(module.id);
         }}
+        title={module.label}
         type="button"
       >
         <span aria-hidden="true" className="lr-nav__icon">
           {module.icon}
         </span>
-        <span className="lr-nav__label">{module.label}</span>
       </button>
     </li>
   );
@@ -72,25 +77,79 @@ export function NavRail({
   );
 }
 
+/**
+ * 顶栏（§3.1 2026-10-17 新增）：搜索居中、主操作在右。
+ *
+ * 它**不承载模块切换** —— 那是左侧图标栏的事。搜索居中是因为它是这个界面的第一动作：
+ * 打开 APP 先找东西，而不是先选模块。
+ */
+export function TopBar({
+  query,
+  onQueryChange,
+  placeholder = "搜索",
+  action,
+}: {
+  query: string;
+  onQueryChange: (next: string) => void;
+  placeholder?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <header className="lr-topbar">
+      <div className="lr-topbar__search">
+        <Input
+          hideLabel
+          label={placeholder}
+          onChange={(event) => {
+            onQueryChange(event.target.value);
+          }}
+          placeholder={placeholder}
+          type="search"
+          value={query}
+        />
+      </div>
+      {action && <div className="lr-topbar__action">{action}</div>}
+    </header>
+  );
+}
+
 export type ListEntry = { id: string; label: string };
 
-/** 列表栏：当前模块的条目集合；选中项由左侧 2.5px 强调条标识（§3.1、§4.2）。 */
+/**
+ * 列表栏：当前模块的条目集合；选中项由左侧 2.5px 强调条标识（§3.1、§4.2）。
+ *
+ * **没有标题**（§3.1 2026-10-17）：区里挂一个标题只是让空面板证明自己存在。
+ * `label` 只给读屏用。折叠钮放在本栏右上角，不再占用状态条。
+ */
 export function ListPane({
-  title,
+  label,
   entries,
   active,
   onSelect,
+  onCollapse,
   empty,
 }: {
-  title: string;
+  label: string;
   entries: readonly ListEntry[];
   active: string | null;
   onSelect: (id: string) => void;
+  onCollapse: () => void;
   empty: string;
 }) {
   return (
-    <div className="lr-list">
-      <h2 className="lr-list__title">{title}</h2>
+    <div aria-label={label} className="lr-list" role="group">
+      {/* 折叠钮在本栏右上角（§3.1 2026-10-17：不再占用状态条的黄金位）。 */}
+      <div className="lr-list__head">
+        <button
+          aria-label="收起列表"
+          className="lr-list__collapse"
+          onClick={onCollapse}
+          title="收起列表"
+          type="button"
+        >
+          <span aria-hidden="true">«</span>
+        </button>
+      </div>
       {entries.length === 0 ? (
         <p className="lr-list__empty">{empty}</p>
       ) : (
@@ -133,7 +192,6 @@ export type VersionNode = {
 export function LogSpine({ versions }: { versions: readonly VersionNode[] }) {
   return (
     <aside aria-label="版本时间线" className="lr-spine">
-      <h2 className="lr-spine__title">版本</h2>
       {versions.length === 0 ? (
         <p className="lr-spine__empty">还没有版本记录</p>
       ) : (
@@ -151,11 +209,13 @@ export function LogSpine({ versions }: { versions: readonly VersionNode[] }) {
   );
 }
 
-/** 检视器：属性、标签、权限判定（§3.1）。默认展开，可折叠。 */
-export function Inspector({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * 检视器：属性、标签、权限判定（§3.1）。宽窗口默认展开，窄窗口退化成图标条。
+ * `label` 只作读屏名，不再渲染成面板标题（§3.1：标题只在承载信息时出现）。
+ */
+export function Inspector({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <aside aria-label={title} className="lr-inspector">
-      <h2 className="lr-inspector__title">{title}</h2>
+    <aside aria-label={label} className="lr-inspector">
       <div className="lr-inspector__body">{children}</div>
     </aside>
   );
@@ -203,6 +263,7 @@ export type ShellLayout = {
 };
 
 export type ShellProps = {
+  top: ReactNode;
   nav: ReactNode;
   list: ReactNode;
   spine: ReactNode;
@@ -210,7 +271,6 @@ export type ShellProps = {
   inspector: ReactNode;
   status: ReactNode;
   layout: ShellLayout;
-  onToggleList: () => void;
   onToggleInspector: () => void;
 };
 
@@ -222,6 +282,7 @@ export type ShellProps = {
  * 点得到的东西。`aria-pressed` 让读屏用户知道这两个是开关而不是动作。
  */
 export function Shell({
+  top,
   nav,
   list,
   spine,
@@ -229,7 +290,6 @@ export function Shell({
   inspector,
   status,
   layout,
-  onToggleList,
   onToggleInspector,
 }: ShellProps) {
   // 窄窗口下检视器退化成图标条：**展开与否只由用户点击决定**（默认折叠）。
@@ -253,6 +313,7 @@ export function Shell({
       data-list={layout.listOpen ? "open" : "closed"}
       data-pane={layout.pane}
     >
+      <div className="lr-shell__top">{top}</div>
       <div className="lr-shell__nav">{nav}</div>
       <div className="lr-shell__list">{list}</div>
       <div className="lr-shell__spine">{spine}</div>
@@ -268,18 +329,6 @@ export function Shell({
       </div>
       <footer className="lr-statusbar">
         <div className="lr-statusbar__slot">{status}</div>
-        <div className="lr-statusbar__chrome">
-          <Button aria-pressed={layout.listOpen} onClick={onToggleList} variant="quiet">
-            列表
-          </Button>
-          <Button
-            aria-pressed={inspectorShown}
-            onClick={toggleInspector}
-            variant="quiet"
-          >
-            检视器
-          </Button>
-        </div>
       </footer>
     </div>
   );

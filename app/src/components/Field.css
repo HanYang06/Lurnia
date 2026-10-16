@@ -27,6 +27,16 @@
   font-size: var(--lr-font-size-caption);
 }
 
+/* 只念不显示的标签：从视觉里移走，但不从无障碍树里移走。 */
+.lr-field--hidden-label .lr-field__label {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .lr-input,
 .lr-select {
   background: var(--lr-surface-raised);

@@ -15,6 +15,7 @@ import { useEffect, useState, type ChangeEvent } from "react";
 
 import { Gallery } from "./panels/Gallery";
 import {
+  Button,
   EmptyState,
   Select,
   StateBadge,
@@ -36,6 +37,7 @@ import {
   ListPane,
   LogSpine,
   NavRail,
+  TopBar,
   NoteIcon,
   PermissionIcon,
   ProjectIcon,
@@ -125,6 +127,7 @@ function App() {
   const [events, setEvents] = useState<Envelope[]>([]);
   const [theme, setTheme] = useState<ThemeChoice>(currentChoice);
   const [module, setModule] = useState("notes");
+  const [query, setQuery] = useState("");
   const [entry, setEntry] = useState<string | null>(null);
   const [layout, setLayout] = useState<ShellLayout>({
     inspectorOpen: true,
@@ -179,8 +182,15 @@ function App() {
 
   const isSettings = module === "settings";
   const copy = MODULE_COPY[module] ?? SETTINGS_COPY;
-  const entries = isSettings ? SETTINGS_ENTRIES : [];
-  const selectedLabel = entries.find((item) => item.id === entry)?.label ?? null;
+
+  // 顶栏搜索是这个界面的第一动作：它过滤当前列表（还没有跨模块搜索的接口）。
+  const keyword = query.trim().toLowerCase();
+  const allEntries = isSettings ? SETTINGS_ENTRIES : [];
+  const entries =
+    keyword.length === 0
+      ? allEntries
+      : allEntries.filter((item) => item.label.toLowerCase().includes(keyword));
+  const selectedLabel = allEntries.find((item) => item.id === entry)?.label ?? null;
 
   // 版本时间线（§3.2）的数据源是 doc 能力的版本链，还没接 —— 空态是诚实的。
   const versions: readonly VersionNode[] = [];
@@ -195,7 +205,7 @@ function App() {
   return (
     <Shell
       inspector={
-        <Inspector title="内核">
+        <Inspector label="内核">
           {ready ? (
             <dl className="facts">
               <div>
@@ -231,13 +241,18 @@ function App() {
         <ListPane
           active={entry}
           empty={
-            isSettings
-              ? "这个模块没有条目。"
-              : "还没有条目。等内核把列文档的接口露出来，这里就会是笔记 / 项目 / 权限判定的集合。"
+            keyword.length > 0
+              ? `没有匹配「${query.trim()}」的条目。`
+              : isSettings
+                ? "这个模块没有条目。"
+                : "还没有条目。等内核把列文档的接口露出来，这里就会是笔记 / 项目 / 权限判定的集合。"
           }
           entries={entries}
+          label={isSettings ? "设置" : copy.title}
+          onCollapse={() => {
+            setLayout((current) => ({ ...current, listOpen: false }));
+          }}
           onSelect={selectEntry}
-          title={isSettings ? "设置" : copy.title}
         />
       }
       nav={
@@ -254,9 +269,6 @@ function App() {
           inspectorOpen: !current.inspectorOpen,
         }));
       }}
-      onToggleList={() => {
-        setLayout((current) => ({ ...current, listOpen: !current.listOpen }));
-      }}
       read={
         <ReadPane
           onBack={() => {
@@ -268,6 +280,17 @@ function App() {
         </ReadPane>
       }
       spine={<LogSpine versions={versions} />}
+      top={
+        <TopBar
+          action={
+            <Button disabled title="还没有文档写入接口（doc 能力未接）">
+              新建
+            </Button>
+          }
+          onQueryChange={setQuery}
+          query={query}
+        />
+      }
       status={
         <>
           <span className="status__dot" data-state={kernelState(ready, stopped)} />

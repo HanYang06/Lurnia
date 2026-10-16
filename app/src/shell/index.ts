@@ -11,6 +11,7 @@ export {
   NavRail,
   ReadPane,
   Shell,
+  TopBar,
   type ListEntry,
   type NavModule,
   type ShellLayout,

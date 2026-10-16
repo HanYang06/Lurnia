@@ -15,14 +15,22 @@ import "./Field.css";
 
 export type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className"> & {
   label: string;
+  /** 标签只念给读屏听，不在视觉上占位（顶栏搜索这类场合用）。 */
+  hideLabel?: boolean;
   className?: string;
 };
 
-export function Input({ label, id, className, ...rest }: InputProps) {
+export function Input({
+  label,
+  hideLabel = false,
+  id,
+  className,
+  ...rest
+}: InputProps) {
   const fieldId = useId();
   const htmlId = id ?? fieldId;
   return (
-    <div className={cx("lr-field", className)}>
+    <div className={cx("lr-field", hideLabel && "lr-field--hidden-label", className)}>
       <label className="lr-field__label" htmlFor={htmlId}>
         {label}
       </label>

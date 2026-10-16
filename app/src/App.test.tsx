@@ -72,10 +72,24 @@ describe("没有数据的地方写空态，不写假数据", () => {
   });
 });
 
-describe("两个折叠开关是开关，不是动作", () => {
-  it("用 aria-pressed 表达「现在是开还是关」", () => {
-    expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain("列表");
-    expect(html).toContain("检视器");
+describe("顶栏与折叠钮各就各位（§3.1 2026-10-17 改版）", () => {
+  it("顶栏在，搜索居中且是带标签的输入（标签只念不显示）", () => {
+    expect(html).toContain("lr-topbar");
+    expect(html).toContain('type="search"');
+    // 「不给无标签输入框留口子」这条没有因为搜索框变宽而破掉
+    expect(html).toContain("lr-field--hidden-label");
+  });
+
+  it("折叠钮搬到了列表栏自己的右上角，不再占用状态条", () => {
+    expect(html).toContain("lr-list__collapse");
+    expect(html).toContain("收起列表");
+    // 状态条上不该再有开关
+    expect(html).not.toContain("lr-statusbar__chrome");
+  });
+
+  it("导航是纯图标：图标不占可见文字，但名字给了读屏与悬停", () => {
+    expect(html).not.toContain("lr-nav__label");
+    expect(html).toContain('aria-label="笔记"');
+    expect(html).toContain('title="笔记"');
   });
 });

@@ -21,14 +21,49 @@
   display: grid;
   font-size: var(--lr-font-size-body);
   grid-template-areas:
+    "top top top top top"
     "nav list spine read inspector"
     "status status status status status";
   grid-template-columns: auto auto auto minmax(0, 1fr) auto;
 
-  /* 状态条 28px 固定（§3.1）。 */
-  grid-template-rows: minmax(0, 1fr) 28px;
+  /* 顶栏 48 / 内容弹性 / 状态条 28（§3.1）。 */
+  grid-template-rows: 48px minmax(0, 1fr) 28px;
   height: 100%;
   overflow: hidden;
+}
+
+/* 顶栏槽位与它自己（§3.1 2026-10-17 新增）。 */
+.lr-shell__top {
+  grid-area: top;
+}
+
+.lr-topbar {
+  align-items: center;
+  background: var(--lr-surface);
+  border-bottom: 1px solid var(--lr-border);
+  display: grid;
+  gap: var(--lr-space-12);
+  grid-template-columns: 1fr auto 1fr;
+  height: 100%;
+  padding: 0 var(--lr-space-12);
+}
+
+/* 搜索居中：它是这个界面的第一动作，不是模块切换的附属。 */
+.lr-topbar__search {
+  grid-column: 2;
+  width: 46ch;
+}
+
+.lr-topbar__action {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* 顶栏里的输入是胶囊形，比列表里的更大一点 —— 它是入口。 */
+.lr-topbar .lr-input {
+  border-radius: calc(var(--lr-space-32) / 2);
+  min-height: var(--lr-space-32);
+  padding: 0 var(--lr-space-12);
 }
 
 /* 栏位预算是固定的：导航条 72 / 列表栏 242 / 脊柱 88 / 检视器 232（§3.1）。 */
@@ -117,12 +152,10 @@
   color: var(--lr-text-muted);
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  font-family: inherit;
-  font-size: var(--lr-font-size-caption);
-  gap: var(--lr-space-4);
-  line-height: var(--lr-line-tight);
-  padding: var(--lr-space-8) var(--lr-space-4);
+
+  /* 纯图标方块（§3.1 2026-10-17）：48 高、图标居中，没有文字。 */
+  height: calc(var(--lr-space-40) + var(--lr-space-8));
+  justify-content: center;
   transition: background-color var(--lr-dur-fast) var(--lr-ease);
   width: 100%;
 }
@@ -162,13 +195,31 @@
   height: 100%;
 }
 
-.lr-list__title {
-  color: var(--lr-text-muted);
-  font-size: var(--lr-font-size-caption);
-  line-height: var(--lr-line-tight);
-  font-weight: 600;
-  margin: 0;
-  padding: var(--lr-space-20) var(--lr-space-16) var(--lr-space-12);
+/* 不挂标题（§3.1）：头行只有右上角的折叠钮。 */
+.lr-list__head {
+  align-items: center;
+  display: flex;
+  height: calc(var(--lr-space-40) + var(--lr-space-8));
+  justify-content: flex-end;
+  padding: 0 var(--lr-space-8);
+}
+
+.lr-list__collapse {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--lr-radius-sm);
+  color: var(--lr-text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  height: var(--lr-space-24);
+  justify-content: center;
+  width: var(--lr-space-24);
+}
+
+.lr-list__collapse:hover {
+  background: var(--lr-surface-raised);
+  color: var(--lr-text);
 }
 
 .lr-list__empty {
@@ -234,15 +285,6 @@
   height: 100%;
   overflow-y: auto;
   padding: var(--lr-space-20) var(--lr-space-8);
-}
-
-.lr-spine__title {
-  color: var(--lr-text-faint);
-  font-size: var(--lr-font-size-caption);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  margin: 0 0 var(--lr-space-12);
-  text-align: center;
 }
 
 .lr-spine__empty {
@@ -361,18 +403,10 @@
   height: 100%;
 }
 
-.lr-inspector__title {
-  color: var(--lr-text-muted);
-  font-size: var(--lr-font-size-caption);
-  font-weight: 600;
-  margin: 0;
-  padding: var(--lr-space-20) var(--lr-space-16) var(--lr-space-12);
-}
-
 .lr-inspector__body {
   flex: 1;
   overflow-y: auto;
-  padding: 0 var(--lr-space-16) var(--lr-space-16);
+  padding: var(--lr-space-20) var(--lr-space-16);
 }
 
 /* -------------------------------------------------------------- 状态条 */
@@ -396,33 +430,6 @@
   display: flex;
   gap: var(--lr-space-12);
   min-width: 0;
-}
-
-.lr-statusbar__chrome {
-  align-items: center;
-  display: flex;
-  gap: var(--lr-space-4);
-}
-
-/*
- * 状态条上的两个开关：去掉边框与底色，它们是一个开关，而不是两个盒子。
- * 尺寸仍不小于 24×24（§7.3 第 5 条），只是不再长得像按钮。
- */
-.lr-statusbar__chrome .lr-button {
-  background: transparent;
-  border-color: transparent;
-  color: var(--lr-text-faint);
-  font-size: var(--lr-font-size-caption);
-  padding: 0 var(--lr-space-8);
-}
-
-.lr-statusbar__chrome .lr-button:hover:not(:disabled) {
-  background: var(--lr-surface-raised);
-  color: var(--lr-text);
-}
-
-.lr-statusbar__chrome .lr-button[aria-pressed="true"] {
-  color: var(--lr-accent);
 }
 
 /* ---------------------------------------- 收窄（§3.3）：先检视器，再列表，最后读面 */
@@ -481,21 +488,18 @@
   .lr-shell[data-list="open"] .lr-shell__list {
     display: block;
   }
-
-  .lr-nav__label {
-    display: none;
-  }
 }
 
 /* <820px：单栏，列表与读面互斥切换；脊柱转为读面顶部的横向版本条。 */
 @media (width < 820px) {
   .lr-shell {
     grid-template-areas:
+      "top top"
       "nav spine"
       "nav main"
       "status status";
     grid-template-columns: 48px minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) 28px;
+    grid-template-rows: 48px auto minmax(0, 1fr) 28px;
   }
 
   .lr-shell__list,
@@ -528,10 +532,6 @@
     gap: var(--lr-space-8);
     overflow-x: auto;
     padding: var(--lr-space-8) var(--lr-space-16);
-  }
-
-  .lr-spine__title {
-    margin: 0;
   }
 
   .lr-spine__list {
