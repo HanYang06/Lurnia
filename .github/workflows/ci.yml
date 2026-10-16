@@ -114,10 +114,17 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Frontend: type-check and build the Tauri WebView UI.
+  # Frontend gates. The UI is its own pnpm project under app/, so it gets its
+  # own job. These mirror AGENTS.md §5 and .pre-commit-config.yaml; the point
+  # of running them here is that nobody has to remember them.
+  #
+  # The token test is not an ordinary unit test: it reads docs/design/ui.md and
+  # compares the token tables against app/src/styles/tokens.css cell by cell,
+  # and recomputes the contrast table in ui.md §7.2. A token value that drifts
+  # from the design document fails here.
   # ---------------------------------------------------------------------
   frontend:
-    name: Frontend build
+    name: Frontend gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -137,6 +144,30 @@ jobs:
       - name: Install
         working-directory: app
         run: pnpm install --frozen-lockfile
+
+      - name: SPDX headers
+        working-directory: app
+        run: pnpm check:spdx
+
+      - name: Lint (TS/TSX)
+        working-directory: app
+        run: pnpm lint:js
+
+      - name: Lint (CSS)
+        working-directory: app
+        run: pnpm lint:css
+
+      - name: Format check
+        working-directory: app
+        run: pnpm format:check
+
+      - name: Type check
+        working-directory: app
+        run: pnpm typecheck
+
+      - name: Tests (tokens vs design doc, contrast)
+        working-directory: app
+        run: pnpm test
 
       - name: Build
         working-directory: app

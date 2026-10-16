@@ -26,6 +26,14 @@ repos:
       - id: check-yaml
         args: [--allow-multiple-documents]
       - id: check-json
+        # tsconfig.json is JSONC **by design** — TypeScript documents the
+        # comments, and the Tauri template ships them. A strict-JSON parser can
+        # only fail on it, which made `pre-commit run --all-files` red for a
+        # reason unrelated to any change (the same trap the gitleaks note at the
+        # bottom describes). Removing the comments to please the hook would mean
+        # deleting documentation; excluding the file is the honest fix.
+        # Every other .json in the tree is still parsed strictly.
+        exclude: ^app/tsconfig.*\.json$
       - id: check-toml
       - id: check-merge-conflict
       - id: check-added-large-files
@@ -44,6 +52,44 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
+
+  # --- Frontend gates (mirror of CI) ------------------------------------
+  # The frontend lives in app/ and is a pnpm project of its own, so these go
+  # through `pnpm --dir app`. They only fire when something under app/ changes.
+  #
+  # All of them use pass_filenames: false on purpose: the tools already have
+  # their own ignore lists (.prettierignore, eslint's ignores, stylelint's
+  # glob), and re-declaring a file list here is how the two drift apart.
+  #
+  # Tests and the production build are NOT here — they run in CI, exactly like
+  # pytest does (the Python hooks are lint/format only too).
+  - repo: local
+    hooks:
+      - id: frontend-spdx
+        name: frontend SPDX headers
+        language: system
+        # node, not a pnpm script: this has to run without touching node_modules.
+        entry: node app/scripts/check-spdx.mjs
+        files: ^app/
+        pass_filenames: false
+      - id: frontend-eslint
+        name: frontend eslint
+        language: system
+        entry: pnpm --dir app run lint:js
+        files: ^app/.*\.(ts|tsx|js|mjs)$
+        pass_filenames: false
+      - id: frontend-stylelint
+        name: frontend stylelint
+        language: system
+        entry: pnpm --dir app run lint:css
+        files: ^app/.*\.css$
+        pass_filenames: false
+      - id: frontend-prettier
+        name: frontend prettier check
+        language: system
+        entry: pnpm --dir app run format:check
+        files: ^app/
+        pass_filenames: false
 
   # --- secrets ----------------------------------------------------------
   # gitleaks is NOT wired as a pre-commit hook on purpose: its pre-commit

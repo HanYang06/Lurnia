@@ -93,12 +93,42 @@ Keep the two lists in step when adding a gate.
 
 If a gate fails, fix it; do not skip or weaken a gate to get a change through.
 
+**Frontend gates.** The UI is a pnpm project of its own under `app/`; run these from `app/`:
+
+```bash
+pnpm check:spdx     # SPDX headers (plain node script, no dependencies)
+pnpm lint:js        # ESLint: type-aware + react-hooks + jsx-a11y + token discipline
+pnpm lint:css       # stylelint: colour literals only in src/styles/tokens.css
+pnpm format:check   # prettier
+pnpm typecheck      # tsc --noEmit (strict)
+pnpm test           # vitest: token layer bound to docs/design/ui.md, contrast recomputed
+pnpm build          # tsc + vite build
+pnpm gate           # all of the above, in order
+```
+
+They live in three places and must stay in step: this list, `.pre-commit-config.yaml`
+(SPDX / eslint / stylelint / prettier) and `.github/workflows/ci.yml` (all of them — the
+tests and the production build run in CI only, exactly like pytest).
+
+Two of these are more than lint rules, and both were reverse-verified:
+
+- **`app/src/styles/tokens.test.ts` binds the token layer to the design document.** It reads
+  `docs/design/ui.md` and compares every token in §2.3/§2.4/§2.5/§4.1/§4.4 cell by cell,
+  checks that the document's `oklch()` and hex forms agree with each other, and
+  **recomputes** the §7.1 targets and the §7.2 contrast table. A token value that drifts from
+  the design document fails the build. Verified by perturbation: changing `--lr-text-faint`
+  from L 0.6 to 0.5 turns both the §7.1 target test and the §7.2 comparison red.
+- **Colour literals are mechanically confined to `src/styles/tokens.css`** — ui.md §八 calls
+  this "the only mechanical way to keep the two themes equal". stylelint bans hex/rgb/oklch
+  in every other stylesheet; ESLint bans hex literals in TS/TSX.
+
 The work is written straight through, so **the tests carry the weight** and the gates are deliberately strict:
 
 - **Coverage is a hard gate**, not a report: `[tool.coverage.report] fail_under = 90`. The run fails when coverage drops. `[tool.coverage.run] patch = ["subprocess"]` is on because the config layer can only be exercised in a subprocess (OnConf's engine is a process singleton) — without it `conf.py` reports 0% and the number means less than it says.
 - **mypy is `strict`** over `src`, `tests` and `script`.
 - **ruff's rule set is explicit** in `[tool.ruff.lint]`, not left to defaults. Chinese full-width punctuation (`RUF001/2/3`) is ignored on purpose: the docs and comments are written in Chinese and full-width punctuation is correct there.
 - **Every invariant is an executable test.** `tests/test_invariants.py` realizes I1–I9; the static half delegates to `script/audit.py`, which is also runnable on its own. Rule detectors are themselves tested with fixtures that *must* trip them — a green audit proves nothing otherwise.
+- **A gate that has never been seen to fail is not known to work.** Every frontend gate was reverse-verified by perturbing the thing it guards. That is how the SPDX check was caught passing a deleted header: the first version tested "the first 5 lines contain the marker string", and `app/scripts/check-spdx.mjs`'s own doc comment quotes both markers — so it vouched for itself. It now matches the *shape* of the header line (marker immediately after the comment opener, whole line). Delete a header and it exits 1.
 - **Line endings are normalized by `.gitattributes`, not by each contributor's `core.autocrlf`.** Without it, a machine with `autocrlf=true` checks out CRLF while `.editorconfig` declares LF, and every line-ending-aware hook and diff churns.
 - **Secret scanning in the pre-commit hook is local and dependency-free** (`script/check_secrets.py`), *not* gitleaks: gitleaks' pre-commit wrapper builds from source and needs a Go toolchain plus the Go module proxy, which makes `pre-commit run --all-files` fail for reasons unrelated to this repository. Full scanning runs in CI.
 - **Do not use shell heredocs to write source files.** Bash eats backslash escapes, so `"…;\n"` written through a heredoc turns into a literal newline inside a string literal — a syntax error that looks like a logic bug. Use the file-writing tool, or a generator script written to a file first. (This cost ~15 minutes once; the same broken channel was retried six times instead of being switched.)
