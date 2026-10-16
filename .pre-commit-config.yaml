@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+#
+# Local mirror of the CI gates, so a failure is caught before the push rather
+# than after it. The authoritative list lives in AGENTS.md §5; keep the two in
+# step when a gate is added.
+#
+# Install once:  uv run python -m pre_commit install --install-hooks
+
+default_language_version:
+  python: python3.14
+
+ci:
+  autoupdate_schedule: monthly
+
+repos:
+  # --- file hygiene -----------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        # SQL fixtures and generated files may legitimately keep spacing.
+        exclude: ^.*\.(sql|lock)$
+      - id: end-of-file-fixer
+        exclude: ^.*\.(lock)$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: detect-private-key
+      # The symlink and case checks matter on Windows contributors' machines.
+      - id: check-symlinks
+      - id: check-executables-have-shebangs
+
+  # --- Python gates (mirror of CI) --------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # --- secrets ----------------------------------------------------------
+  # gitleaks is NOT wired as a pre-commit hook on purpose: its pre-commit
+  # wrapper builds from source and therefore needs a Go toolchain plus network
+  # access to the module proxy. That makes `pre-commit run --all-files` fail in
+  # a way that has nothing to do with this repository's code, which is exactly
+  # the kind of gate people learn to ignore.
+  #
+  # Secret scanning runs in CI instead, where the runner has the toolchain:
+  # see .github/workflows/ (gitleaks step) and CodeQL.
+  - repo: local
+    hooks:
+      - id: no-committed-secrets
+        name: no obvious committed secrets
+        language: system
+        # `python` alone is not on PATH on every platform (notably Windows);
+        # go through uv, which this project already requires.
+        entry: uv run --no-sync python script/check_secrets.py
+        files: .*
+        pass_filenames: false

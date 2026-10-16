@@ -1,0 +1,13 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/HanYang06/Lurnia/security/advisories/new
+    about: Report privately. Do not open a public issue for a security problem.
+  - name: Question or discussion
+    url: https://github.com/HanYang06/Lurnia/discussions
+    about: For open-ended questions that are not a bug or a concrete proposal.
+  - name: Read the design first
+    url: https://github.com/HanYang06/Lurnia/blob/main/docs/design/README.md
+    about: The design directory is the source of truth; most "why is it like this" answers are there.

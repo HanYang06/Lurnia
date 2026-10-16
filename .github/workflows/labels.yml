@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+name: Sync labels
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/labels.yml", ".github/workflows/labels.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  labels:
+    name: Sync labels from config
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/labels.yml
+
+      - uses: EndBug/label-sync@v2
+        with:
+          config-file: .github/labels.yml
+          # delete-other-labels stays false: this job owns the labels it
+          # declares, and must not silently remove one somebody added for a
+          # transient reason.
+          delete-other-labels: false

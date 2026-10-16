@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+name: Dependency review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Review dependency changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/dependency-review-action@v5
+        with:
+          # Block a PR that pulls in a known-vulnerable or incompatibly licensed
+          # dependency. The license check matters here: the project is
+          # Apache-2.0 and must not link something with a conflicting license.
+          fail-on-severity: moderate
+          comment-summary-in-pr: on-failure

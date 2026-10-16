@@ -1,6 +1,37 @@
-__pycache__
-dict
-build
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
 
+# --- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# --- Node (the Tauri frontend under app/) ---------------------------------
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+
+# --- build output ---------------------------------------------------------
+build/
+dist/
+app/dist/
+
+# The Tauri sidecar binaries are BUILT, not committed
+# (script/build_sidecar.py writes them here for `tauri build` to pick up)
+app/src-tauri/binaries/
+
+# --- coverage -------------------------------------------------------------
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- misc -----------------------------------------------------------------
+dict
+
+# Agent skill fixtures kept out of this repository's history.
 .agents/skills/skill-creator
 .agents/skills/git-commit
