@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Sidecar entry-point tests.
 
+Covers the stdio line protocol (packaging.md §五): the handshake, the kernel → UI
+event stream, the data-directory rules, and that a failure anywhere becomes one
+readable `error` line instead of a traceback on somebody's console.
+
 The build script's correctness is covered here at the level that can be tested
 without a full PyInstaller run: the protocol, the self-check's failure detection,
 and the build script's own resource discovery. The actual frozen build is
@@ -13,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -24,22 +29,43 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILD_SCRIPT = ROOT / "script" / "build_sidecar.py"
 
 
-def _run_sidecar(*args: str) -> tuple[int, dict[str, object]]:
+def _run_sidecar(
+    data_dir: pathlib.Path | None = None,
+    *args: str,
+    env: dict[str, str] | None = None,
+) -> tuple[int, list[dict[str, object]]]:
+    """Run the sidecar to completion; return ``(exit code, parsed JSON lines)``.
+
+    ``stdin`` is /dev/null so the serve loop sees EOF immediately: the host keeps
+    that pipe open, a test does not need to.
+    """
+    command = [sys.executable, "-m", "lurnia.sidecar", *args]
+    if data_dir is not None:
+        command += ["--data-dir", str(data_dir)]
+    environment = dict(os.environ)
+    if env:
+        environment.update(env)
     proc = subprocess.run(
-        [sys.executable, "-m", "lurnia.sidecar", *args],
+        command,
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         check=False,
         cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        env=environment,
     )
-    payload: dict[str, object] = {}
-    for raw in proc.stdout.splitlines():
-        candidate = raw.strip()
-        if candidate.startswith("{"):
-            payload = json.loads(candidate)
-    return proc.returncode, payload
+    payloads = [
+        json.loads(line) for line in proc.stdout.splitlines() if line.startswith("{")
+    ]
+    return proc.returncode, payloads
+
+
+def _only(payloads: list[dict[str, object]], kind: str) -> dict[str, object]:
+    found = [payload for payload in payloads if payload.get("type") == kind]
+    assert found, f"no {kind!r} line in {payloads}"
+    return found[0]
 
 
 @pytest.fixture(scope="module")
@@ -53,45 +79,312 @@ def build_module() -> Any:
 
 
 # --------------------------------------------------------------------------
-# protocol
+# protocol: control lines
 # --------------------------------------------------------------------------
 
 
 def test_sidecar_version_reports_protocol() -> None:
-    code, payload = _run_sidecar("--version")
+    code, payloads = _run_sidecar(None, "--version")
     assert code == 0
-    assert payload["type"] == "version"
-    assert payload["protocol"] == 1
-    assert payload["version"]
-
-
-def test_sidecar_ready_handshake_when_run_plainly() -> None:
-    code, payload = _run_sidecar()
-    assert code == 0
-    assert payload["type"] == "ready"
+    assert payloads[0]["type"] == "version"
+    assert payloads[0]["protocol"] == 1
+    assert payloads[0]["version"]
 
 
 def test_sidecar_rejects_unknown_flags() -> None:
     """A typo must not be silently ignored by a host-driven process."""
-    code, payload = _run_sidecar("--nope")
+    code, payloads = _run_sidecar(None, "--nope")
     assert code == 2
-    assert payload["type"] == "error"
-    assert "--nope" in str(payload["message"])
+    assert payloads[0]["type"] == "error"
+    assert "--nope" in str(payloads[0]["message"])
 
 
-def test_sidecar_output_is_one_json_object_per_line() -> None:
+def test_a_data_dir_flag_without_a_value_is_a_usage_error() -> None:
+    code, payloads = _run_sidecar(None, "--data-dir")
+    assert code == 2
+    assert "--data-dir" in str(payloads[0]["message"])
+
+
+def test_every_line_of_the_protocol_is_one_json_object(tmp_path: pathlib.Path) -> None:
     proc = subprocess.run(
-        [sys.executable, "-m", "lurnia.sidecar", "--version"],
+        [sys.executable, "-m", "lurnia.sidecar", "--data-dir", str(tmp_path)],
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         check=False,
         cwd=ROOT,
+        stdin=subprocess.DEVNULL,
     )
     lines = [line for line in proc.stdout.splitlines() if line.strip()]
-    assert len(lines) == 1, "protocol is one JSON object per line"
-    json.loads(lines[0])
+    assert len(lines) >= 2, f"expected ready + at least one event, got {lines}"
+    for line in lines:
+        json.loads(line)
+
+
+def test_the_data_dir_flag_also_accepts_an_equals_sign(tmp_path: pathlib.Path) -> None:
+    code, payloads = _run_sidecar(None, f"--data-dir={tmp_path}")
+
+    assert code == 0
+    assert payloads[0]["data_dir"] == str(tmp_path)
+
+
+def test_serve_reads_stdin_and_stops_at_eof(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v1 does not parse stdin: a line is read and ignored, EOF ends the process."""
+    import io
+
+    from lurnia import sidecar
+    from lurnia.assembly import Core, default_paths
+    from lurnia.core.storage import open_db
+
+    def fake_assemble(_data_dir: object, **kwargs: Any) -> Core:
+        return Core(
+            default_paths(tmp_path),
+            open_db(tmp_path / "lurnia.db"),
+            transport=kwargs.get("transport"),
+        )
+
+    monkeypatch.setattr(sidecar, "assemble", fake_assemble)
+    monkeypatch.setattr(sidecar, "_rotate_on_start", lambda _core: 0)
+
+    stream = io.StringIO()
+    code = sidecar.serve(
+        data_dir=tmp_path, stream=stream, stdin=io.StringIO('{"anything": 1}\n')
+    )
+
+    assert code == 0
+    kinds = [json.loads(line)["type"] for line in stream.getvalue().splitlines()]
+    assert kinds == ["ready", "event"], kinds
+
+
+# --------------------------------------------------------------------------
+# protocol: startup
+# --------------------------------------------------------------------------
+
+
+def test_ready_is_the_first_line_and_names_the_data_dir(tmp_path: pathlib.Path) -> None:
+    code, payloads = _run_sidecar(tmp_path)
+
+    assert code == 0
+    ready = payloads[0]
+    assert ready["type"] == "ready"
+    assert ready["protocol"] == 1
+    assert ready["data_dir"] == str(tmp_path)
+    assert ready["db_version"] == 2
+    assert ready["rotated"] == 0
+    assert ready["frozen"] is False
+
+
+def test_sidecar_exits_when_the_host_closes_stdin(tmp_path: pathlib.Path) -> None:
+    """The host owns the lifetime: EOF means the host is gone, so the core goes too."""
+    code, _payloads = _run_sidecar(tmp_path)
+    assert code == 0
+
+
+def test_the_kernel_event_follows_the_ready_line(tmp_path: pathlib.Path) -> None:
+    code, payloads = _run_sidecar(tmp_path)
+
+    assert code == 0
+    kinds = [str(payload["type"]) for payload in payloads]
+    assert kinds.index("ready") < kinds.index("event"), kinds
+    envelope = _only(payloads, "event")["envelope"]
+    assert isinstance(envelope, dict)
+    assert envelope["topic"] == "kernel.started"
+    assert envelope["subject"]["id"] == "local"
+    assert envelope["seq"] >= 1
+    assert str(envelope["ts_wall"]).endswith("+00:00")
+    assert envelope["version"] == 1
+
+
+def test_the_forwarded_event_is_the_one_that_was_logged(tmp_path: pathlib.Path) -> None:
+    """I5 in production: the envelope written to the log is the one pushed to the UI."""
+    from lurnia.core.storage import open_db, read_events
+
+    _code, payloads = _run_sidecar(tmp_path)
+    envelope = _only(payloads, "event")["envelope"]
+    assert isinstance(envelope, dict)
+
+    db = open_db(tmp_path / "lurnia.db")
+    try:
+        rows = read_events(db)
+        assert [row["id"] for row in rows] == [envelope["id"]]
+        assert [row["topic"] for row in rows] == ["kernel.started"]
+    finally:
+        db.close()
+
+
+def test_the_sidecar_declares_its_keep_key_in_the_settings(
+    tmp_path: pathlib.Path,
+) -> None:
+    from lurnia.sidecar import DEFAULT_EVENT_LOG_KEEP, EVENT_LOG_KEEP_KEY
+
+    _run_sidecar(tmp_path)
+
+    settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    assert settings[EVENT_LOG_KEEP_KEY] == DEFAULT_EVENT_LOG_KEEP
+
+
+def test_the_sidecar_rotates_the_log_before_going_ready(tmp_path: pathlib.Path) -> None:
+    """Route 004 in production: rotation happens at startup, not inside append."""
+    from lurnia.core.contracts import EventEnvelope, Subject
+    from lurnia.core.storage import append_event, open_db
+
+    _run_sidecar(tmp_path)  # the first run leaves one logged event
+
+    db = open_db(tmp_path / "lurnia.db")
+    try:
+        for index in range(2):
+            append_event(
+                db,
+                EventEnvelope(
+                    topic=f"seed.{index}", subject=Subject(id="local"), payload={}
+                ),
+            )
+    finally:
+        db.close()
+    (tmp_path / "settings.json").write_text(
+        json.dumps({"event_log.keep": 1}), encoding="utf-8"
+    )
+
+    code, payloads = _run_sidecar(tmp_path)
+
+    assert code == 0
+    assert payloads[0]["type"] == "ready"
+    assert payloads[0]["rotated"] == 2
+    assert len(list((tmp_path / "event-log").glob("*.jsonl"))) == 1
+
+
+# --------------------------------------------------------------------------
+# data directory
+# --------------------------------------------------------------------------
+
+
+def test_the_flag_beats_the_environment(tmp_path: pathlib.Path) -> None:
+    flag_dir = tmp_path / "flag"
+    env_dir = tmp_path / "env"
+
+    code, payloads = _run_sidecar(flag_dir, env={"LURNIA_DATA_DIR": str(env_dir)})
+
+    assert code == 0
+    assert payloads[0]["data_dir"] == str(flag_dir)
+    assert not env_dir.exists(), "the environment must not win over the flag"
+
+
+def test_the_environment_can_set_the_data_dir(tmp_path: pathlib.Path) -> None:
+    code, payloads = _run_sidecar(None, env={"LURNIA_DATA_DIR": str(tmp_path)})
+
+    assert code == 0
+    assert payloads[0]["data_dir"] == str(tmp_path)
+    assert (tmp_path / "lurnia.db").is_file()
+
+
+def test_the_protocol_channel_is_utf8_even_under_a_gbk_host_locale(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Regression: a local-codepage stdout turns Chinese payloads into mojibake.
+
+    The channel must dictate its own encoding — the host decodes JSON as UTF-8, so
+    a console set to GBK must not leak into the wire.
+    """
+    data_dir = tmp_path / "数据目录"
+    proc = subprocess.run(
+        [sys.executable, "-m", "lurnia.sidecar", "--data-dir", str(data_dir)],
+        capture_output=True,
+        check=False,
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        env={**os.environ, "PYTHONIOENCODING": "gbk"},
+    )
+
+    first_line = proc.stdout.splitlines()[0]
+    payload = json.loads(first_line.decode("utf-8"))
+    assert payload["type"] == "ready"
+    assert payload["data_dir"] == str(data_dir)
+
+
+def test_a_broken_data_dir_is_reported_as_an_error_line(tmp_path: pathlib.Path) -> None:
+    """A host-driven process must fail in one readable line, not a traceback."""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not a directory", encoding="utf-8")
+
+    code, payloads = _run_sidecar(blocked)
+
+    assert code == 1
+    assert payloads[-1]["type"] == "error"
+    assert "起不来" in str(payloads[-1]["message"])
+
+
+# --------------------------------------------------------------------------
+# transport binding + helpers
+# --------------------------------------------------------------------------
+
+
+def test_the_transport_writes_one_event_line_and_has_no_back_channel() -> None:
+    """The binding only moves the envelope: the fields stay the kernel's (I8)."""
+    import io
+
+    from lurnia.core.contracts import EventEnvelope, Subject
+    from lurnia.sidecar import StdioTransport
+
+    stream = io.StringIO()
+    transport = StdioTransport(stream)
+    envelope = EventEnvelope(
+        topic="note.changed", subject=Subject(id="local"), payload={"a": 1}, seq=7
+    )
+
+    transport.publish(envelope.to_wire())
+
+    line = json.loads(stream.getvalue().strip())
+    assert line["type"] == "event"
+    assert line["protocol"] == 1
+    assert line["envelope"]["topic"] == "note.changed"
+    assert line["envelope"]["seq"] == 7
+    assert line["envelope"]["payload"] == {"a": 1}
+    assert transport.drain() == [], "stdio 只有推，没有回读"
+
+
+def test_the_data_dir_only_comes_from_the_environment_without_a_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lurnia import sidecar
+
+    monkeypatch.delenv(sidecar.DATA_DIR_ENV, raising=False)
+    assert sidecar._data_dir_from_env() is None
+
+    monkeypatch.setenv(sidecar.DATA_DIR_ENV, "somewhere")
+    assert sidecar._data_dir_from_env() == pathlib.Path("somewhere")
+
+
+def test_a_failure_after_assembly_is_reported_as_one_error_line(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The host must get a line it can read, not a traceback on its stderr."""
+    import io
+
+    from lurnia import sidecar
+    from lurnia.assembly import Core, default_paths
+    from lurnia.core.storage import open_db
+
+    def fake_assemble(_data_dir: object, **_kwargs: object) -> Core:
+        # The transport does not matter here: the failure happens before any publish.
+        return Core(default_paths(tmp_path), open_db(tmp_path / "lurnia.db"))
+
+    def boom(_core: Core) -> int:
+        msg = "rotate exploded"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(sidecar, "assemble", fake_assemble)
+    monkeypatch.setattr(sidecar, "_rotate_on_start", boom)
+
+    stream = io.StringIO()
+    code = sidecar.serve(data_dir=tmp_path, stream=stream, stdin=io.StringIO(""))
+
+    assert code == 1
+    payload = json.loads(stream.getvalue().strip().splitlines()[-1])
+    assert payload["type"] == "error"
+    assert "运行失败" in str(payload["message"])
 
 
 # --------------------------------------------------------------------------
@@ -101,7 +394,8 @@ def test_sidecar_output_is_one_json_object_per_line() -> None:
 
 def test_self_check_passes_from_source() -> None:
     """From source the check must pass: it is the baseline for the frozen run."""
-    code, payload = _run_sidecar("--self-check")
+    code, payloads = _run_sidecar(None, "--self-check")
+    payload = payloads[0]
     assert code == 0, payload
     assert payload["ok"] is True
     assert payload["problems"] == []
@@ -109,7 +403,8 @@ def test_self_check_passes_from_source() -> None:
 
 
 def test_self_check_reports_the_ddl_it_found() -> None:
-    _code, payload = _run_sidecar("--self-check")
+    _code, payloads = _run_sidecar(None, "--self-check")
+    payload = payloads[0]
     assert payload["ddl_migrations"] == [1, 2]
     assert payload["ddl_tables"] == ["attachment.sql", "event_log.sql"]
     assert payload["expected_version"] == payload["migrated_to"]
@@ -117,8 +412,8 @@ def test_self_check_reports_the_ddl_it_found() -> None:
 
 def test_self_check_actually_migrates_a_database() -> None:
     """Reading the DDL is not enough; the migration must run."""
-    _code, payload = _run_sidecar("--self-check")
-    assert payload["migrated_to"] == 2
+    _code, payloads = _run_sidecar(None, "--self-check")
+    assert payloads[0]["migrated_to"] == 2
 
 
 def test_self_check_fails_when_ddl_is_unreachable(

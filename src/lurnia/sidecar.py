@@ -2,28 +2,223 @@
 # SPDX-License-Identifier: Apache-2.0
 """Sidecar 入口：被 Tauri 宿主拉起的 Python 核心。
 
-口径见 [packaging.md](../../../docs/design/packaging.md)。
+口径见 [packaging.md](../../../docs/design/packaging.md)（§五 行协议、§六 数据目录）。
 
 **这是内核的对外入口，不是 UI。** 进程由宿主（Tauri）管理，绝不自己开浏览器、
 不起监听端口、不联网（不变量 I9）。通信走 stdio：一行一个 JSON 对象。
 
-输出一律用 ``sys.stdout.write``（不用 ``print``）—— stdout 是协议通道，必须
-精确控制字节，且内核层不允许随手打印。
+两件事刻意不在这里做：
+
+* **事件线不在这里拼。** 它们是 :class:`StdioTransport` 这个**传输绑定**把封套的
+  wire 字节搬出去的（不变量 I8：封套归内核，传输只搬 bytes）。这里只管控制线
+  （`ready` / `error`）与进程生命周期。
+* **stdin 不解析。** 宿主 → 内核的请求走 Tauri IPC，不走 stdio；这里只等 stdin
+  关闭（EOF）就退出，所以宿主没了核心不会变孤儿。
+
+输出一律用 ``sys.stdout.write``（不用 ``print``）—— stdout 是协议通道，必须精确
+控制字节，且内核层不允许随手打印。
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
-from typing import Any
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, TextIO
+
+from lurnia import __version__
+from lurnia.assembly import Core, assemble
+from lurnia.core import conf
+from lurnia.core.contracts import Subject
+from lurnia.core.storage import KERNEL_SCHEMA
 
 PROTOCOL_VERSION = 1
 
+#: 数据目录的覆盖口子：测试与便携安装用，宿主日常不传（packaging.md §五）。
+DATA_DIR_ENV = "LURNIA_DATA_DIR"
 
-def _emit(payload: dict[str, Any]) -> None:
+#: 事件日志保留条数（路线 004）。宿主可改 settings.json 覆盖；声明式写入见
+#: :func:`_rotate_on_start`。
+EVENT_LOG_KEEP_KEY = "event_log.keep"
+DEFAULT_EVENT_LOG_KEEP = 50_000
+
+#: 本机单用户。真主体标识是权限模块的事（路线 014），这里先给一个明确的值。
+LOCAL_SUBJECT = Subject(id="local")
+
+
+def _use_utf8(stream: TextIO) -> None:
+    """把协议通道锁成 UTF-8。
+
+    宿主按 UTF-8 解 JSON 行；本机编码一进来（中文 Windows 上是 GBK），中文
+    payload 立刻变成乱码甚至解不出来。协议通道的字节必须自己说了算，不能听
+    控制台的。测试里注入的 `StringIO` 没有 `reconfigure`，跳过即可。
+    """
+    reconfigure = getattr(stream, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8")
+
+
+def _emit(payload: dict[str, Any], *, stream: TextIO | None = None) -> None:
     """写一行 JSON 到 stdout 并立刻 flush（宿主按行读，不能等缓冲）。"""
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
-    sys.stdout.flush()
+    target = stream if stream is not None else sys.stdout
+    target.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+    target.flush()
+
+
+class StdioTransport:
+    """传输绑定：把封套的 wire 字节写成 stdout 上的一行 ``event``。
+
+    传输只搬 bytes（不变量 I8）：这里把内核给的 wire **原样**嵌进协议行，字段名
+    一个不改，也不替内核解释它。
+
+    ``drain()`` 故意返回空表：这条通道只有内核 → UI 一个方向，假装能回读只会让
+    调用方以为存在一条回读通道。
+    """
+
+    def __init__(self, stream: TextIO) -> None:
+        self._stream = stream
+
+    def publish(self, wire: bytes) -> None:
+        _emit(
+            {
+                "type": "event",
+                "protocol": PROTOCOL_VERSION,
+                "envelope": json.loads(wire),
+            },
+            stream=self._stream,
+        )
+
+    def drain(self) -> list[bytes]:
+        return []
+
+
+@dataclass(frozen=True, slots=True)
+class Options:
+    """命令行解析结果。未知参数**不静默吞掉**，交给调用方报错。"""
+
+    data_dir: Path | None = None
+    leftover: tuple[str, ...] = ()
+
+
+def _parse(args: list[str]) -> Options:
+    """只认 ``--data-dir <path>`` / ``--data-dir=<path>``，其余原样留着。"""
+    data_dir: Path | None = None
+    leftover: list[str] = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--data-dir":
+            index += 1
+            if index >= len(args):
+                leftover.append(arg)
+                break
+            data_dir = Path(args[index])
+        elif arg.startswith("--data-dir="):
+            data_dir = Path(arg.split("=", 1)[1])
+        else:
+            leftover.append(arg)
+        index += 1
+    return Options(data_dir=data_dir, leftover=tuple(leftover))
+
+
+def _data_dir_from_env() -> Path | None:
+    """数据目录：``--data-dir`` > ``LURNIA_DATA_DIR`` > 平台默认（`None`）。"""
+    override = os.environ.get(DATA_DIR_ENV)
+    return Path(override) if override else None
+
+
+def _rotate_on_start(core: Core) -> int:
+    """启动时轮转一次事件日志（路线 004），返回归档条数。
+
+    保留条数走配置声明（路线 001 的「声明 + 补齐」用法）：键不存在就按默认值补齐，
+    存在就用文件里的值 —— 运行时不覆盖用户写的值。
+    """
+    conf.declare(
+        EVENT_LOG_KEEP_KEY,
+        DEFAULT_EVENT_LOG_KEEP,
+        "事件日志保留条数：轮转时留最新的多少条",
+    )
+    keep = int(conf.read(EVENT_LOG_KEEP_KEY))
+    return core.rotate_event_log(keep=keep).archived
+
+
+def _announce_start(core: Core, rotated: int) -> None:
+    """把「核心已启动」做成一条**真事件**：先落日志（I5），再上广播平面。
+
+    顺序就是 I5 的顺序，而这一条恰好也被推给 UI —— 于是「日志里有」与
+    「UI 看到了」是同一个封套，不用对两次账。
+    """
+    envelope = core.bus.envelope(
+        "kernel.started",
+        {"rotated": rotated, "version": __version__},
+        subject=LOCAL_SUBJECT,
+    )
+    core.record(envelope)
+    core.bus.emit_envelope(envelope)
+
+
+def serve(
+    *,
+    data_dir: str | Path | None = None,
+    stream: TextIO | None = None,
+    stdin: TextIO | None = None,
+) -> int:
+    """正常启动：装配核心、推事件、等宿主关掉 stdin。
+
+    `data_dir` 为 `None` 时先看环境变量，再看平台默认（packaging.md §六）。
+    """
+    out = stream if stream is not None else sys.stdout
+    source = stdin if stdin is not None else sys.stdin
+    _use_utf8(out)
+    if data_dir is None:
+        data_dir = _data_dir_from_env()
+
+    try:
+        core = assemble(data_dir, transport=StdioTransport(out))
+    except Exception as exc:  # 起不来必须报给宿主，不能只留 traceback
+        _emit(
+            {
+                "type": "error",
+                "protocol": PROTOCOL_VERSION,
+                "message": f"核心起不来：{exc}",
+            },
+            stream=out,
+        )
+        return 1
+
+    try:
+        rotated = _rotate_on_start(core)
+        _emit(
+            {
+                "type": "ready",
+                "protocol": PROTOCOL_VERSION,
+                "version": __version__,
+                "data_dir": str(core.paths.home),
+                "db_version": core.db.current_version(KERNEL_SCHEMA),
+                "frozen": bool(getattr(sys, "frozen", False)),
+                "rotated": rotated,
+            },
+            stream=out,
+        )
+        _announce_start(core, rotated)
+        # v1 不解析 stdin：等 EOF 就是等宿主收摊
+        for _line in source:
+            pass
+    except Exception as exc:  # 同上：宿主需要一行能读懂的失败
+        _emit(
+            {
+                "type": "error",
+                "protocol": PROTOCOL_VERSION,
+                "message": f"核心运行失败：{exc}",
+            },
+            stream=out,
+        )
+        return 1
+    finally:
+        core.close()
+    return 0
 
 
 def self_check() -> int:
@@ -37,10 +232,9 @@ def self_check() -> int:
        指向临时解包目录，任何靠它推路径的写法都会在这里现原形）。
     """
     import tempfile
-    from pathlib import Path
 
     from lurnia.core.ddl import highest_version, read_schema, read_tables
-    from lurnia.core.storage import KERNEL_SCHEMA, open_db
+    from lurnia.core.storage import open_db
 
     problems: list[str] = []
     try:
@@ -82,36 +276,27 @@ def self_check() -> int:
 def main(argv: list[str] | None = None) -> int:
     """入口。未知参数按用法错误处理，不静默忽略。"""
     args = list(sys.argv[1:] if argv is None else argv)
+    _use_utf8(sys.stdout)
 
     if "--version" in args:
-        from lurnia import __version__
-
         _emit({"type": "version", "protocol": PROTOCOL_VERSION, "version": __version__})
         return 0
 
     if "--self-check" in args:
         return self_check()
 
-    unknown = [a for a in args if a.startswith("-")]
-    if unknown:
+    options = _parse(args)
+    if options.leftover:
         _emit(
             {
                 "type": "error",
                 "protocol": PROTOCOL_VERSION,
-                "message": f"未知参数：{' '.join(unknown)}",
+                "message": f"未知参数：{' '.join(options.leftover)}",
             }
         )
         return 2
 
-    # 正常启动：先握手，宿主据此确认核心已就绪
-    _emit(
-        {
-            "type": "ready",
-            "protocol": PROTOCOL_VERSION,
-            "frozen": bool(getattr(sys, "frozen", False)),
-        }
-    )
-    return 0
+    return serve(data_dir=options.data_dir)
 
 
 if __name__ == "__main__":
