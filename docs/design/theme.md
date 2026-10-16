@@ -63,6 +63,19 @@ ui.md §五 里定死并被组件依赖，改它是全树改动；加一个属�
 
 > 上图为按本文件令牌值渲染的色卡，不是界面截图。
 
+> **机器可读的导出版（2026-10-17）**：本节与 §四/§五/§六 的取值已导出为两份 JSON，
+> 供设计工具导入后手绘：
+>
+> - [`assets/theme/lurnia-capybara.tokens.json`](assets/theme/lurnia-capybara.tokens.json)
+>   —— 带 `token` / `hex` / `oklch` / `usage`，按 `light` / `dark` 分组；
+> - [`assets/theme/lurnia-capybara.swatches.json`](assets/theme/lurnia-capybara.swatches.json)
+>   —— 扁平的 `名字 → 值`，给只吃色板表的工具用。
+>
+> 两份都由本文件解析生成，**不是手抄**；另外补了文档没逐个列出、但手绘交互态要用的
+> `accent-hover` / `accent-active`（按 ui.md §4.2 的规则算：深色端 +0.04 / +0.08 明度，
+> 浅色端 −0.03 / −0.06）。生成脚本目前在仓库外的 `lurnia-tools/mk_tokens.py`；
+> 若要长期保留这两份文件，应当把它移进 `script/` 并配一条门禁防漂移。
+
 ### 3.1 深色（主）
 
 | 令牌 | 值 | 十六进制 | 与主线的关系 |
