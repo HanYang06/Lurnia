@@ -541,12 +541,17 @@ core.change("doc.saved", …)  →
 | `doc_revision` | 历史快照：`doc_id` / `revision` / `body` / `created_wall` / `cause` | **已落** |
 | `doc_ref_index` | 引用与反链（§十；按 `doc_id` 寻址，所以跨类型可用） | **已落** |
 | `annotation` | 批注（§十一；锚定在 `doc_id` + §五 的锚点上） | **已落** |
-| `doc_fts` | FTS5 全文索引（`title` + 类型抽取器给出的纯文本） | **不做**，见下 |
+| ~~`doc_fts`~~ | 全文索引**不归这里**：它是派生数据（能从正文重算），归**搜索模块自持**（schema `search`，路线 118） | 已移出 |
 
 **只有 `doc_type` 与 `title` 是列**：前者是判别式，后者是唯一真正通用的字段（要排序、要列表）。
 凡是"某种编辑器才有的东西"，一律进 `body` 或 `attrs` 的 JSON —— 这就是「加编辑器不改库」的
 机械保证（storage.md §八）。
 
+> **全文索引的归属（2026-10-17 改判）。** 它一度被写进本文档 schema，现在移出：
+> 它是**派生数据**（storage.md §八），该有自己的 schema 与版本链，好让"重建索引"是
+> 一次 DROP 重建而不是文档 schema 的一次迁移。搜索是独立能力（跨类型、只读、
+> 有自己的排序与分词问题），路线号 **118**。
+>
 > **`doc_fts` 为什么没做（2026-10-17 实测）。** FTS5 的默认分词器 `unicode61` 把没有空格的
 > 中文整段当一个 token，`MATCH '中文检索'` 返回 **0 条**；`trigram` 能用，但两字词仍搜不到
 > （详见 [storage.md §三](storage.md) 的更正表）。**中文分词口径没定之前不建 FTS 表**：
@@ -720,7 +725,8 @@ core.change("doc.saved", …)  →
    [storage.md §三](storage.md)：默认分词器对中文返回 **0 条**，`trigram` 两字词仍搜不到。
    两者的取舍：`trigram` 零成本无依赖、缺两字词；**bigram 预切分**两字词也能命中、
    不必写 C 扩展，代价是抽取器要多产出一份"检索用文本"、索引略大。
-   顺带一并定 `doc_fts` 用 external content 还是 contentless（取决于 FTS5 删除成本的实测）。
+   顺带一并定索引表用 external content 还是 contentless（取决于 FTS5 删除成本的实测）——
+   它是**搜索模块**的表（schema `search`，路线 118），不进文档 schema。
 
    > **这条管的是哪一层搜索**（2026-10-17 记）：只影响**库级检索**（跨文档搜内容，
    > 即"哪篇笔记提过这个词"）。**单篇内的查找替换（034）不走 FTS** —— 它在前端文档模型上
