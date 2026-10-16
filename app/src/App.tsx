@@ -4,11 +4,15 @@
  * 壳：显示宿主转发的内核状态与事件流（路线 009 / 105）。
  *
  * 这个界面刻意什么业务都不做 —— 它要证明的是**通道通了**：核心起来、封套能到、
- * 顺序可读。真正的笔记 / 项目界面是后面的事，样式也只是占位（路线 098 的主题包
- * 会换掉它）。
+ * 顺序可读。真正的笔记 / 项目界面是后面的事。
+ *
+ * 样式上它已经是令牌层（093）的真实使用者：**一条颜色字面量都没有**，
+ * 深浅两套配色自动都对。四区布局（095）与组件库（094 / 103）还没做，
+ * 所以这里只有一个占位壳 —— 连主题切换控件也刻意做得最小，够验收 096/097 就行。
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
+
 import {
   onKernelEvent,
   onKernelReady,
@@ -17,21 +21,36 @@ import {
   type Ready,
   type Stopped,
 } from "./kernel";
+import {
+  THEME_CHOICES,
+  currentChoice,
+  isThemeChoice,
+  setThemeChoice,
+  type ThemeChoice,
+} from "./theme";
 import "./App.css";
 
 /** 界面上只留最近这么多条，别让一个长跑的核心把内存撑起来。 */
 const MAX_ROWS = 50;
 
+const THEME_LABELS: Record<ThemeChoice, string> = {
+  system: "跟随系统",
+  dark: "深色",
+  light: "浅色",
+};
+
 function App() {
   const [ready, setReady] = useState<Ready | null>(null);
   const [stopped, setStopped] = useState<Stopped | null>(null);
   const [events, setEvents] = useState<Envelope[]>([]);
+  // main.tsx 已经 initTheme 过了，这里只是把模块里的当前选择读进 React。
+  const [theme, setTheme] = useState<ThemeChoice>(currentChoice);
 
   useEffect(() => {
     // 订阅是异步拿到的句柄：卸载时如果还没拿到，拿到后立刻退订，
     // 否则 React 严格模式下的双挂载会留下两条活的监听。
     let disposed = false;
-    const unlisten: Array<() => void> = [];
+    const unlisten: (() => void)[] = [];
     const keep = (off: () => void) => {
       if (disposed) {
         off();
@@ -54,6 +73,14 @@ function App() {
     };
   }, []);
 
+  const onThemeChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next: unknown = event.target.value;
+    if (isThemeChoice(next)) {
+      setThemeChoice(next);
+      setTheme(next);
+    }
+  };
+
   const status = stopped ? "核心已退出" : ready ? "核心已就绪" : "等待核心…";
 
   return (
@@ -63,11 +90,21 @@ function App() {
         <span className={`badge badge--${stopped ? "down" : ready ? "up" : "wait"}`}>
           {status}
         </span>
+        <div className="shell__theme">
+          <label htmlFor="theme-choice">主题</label>
+          <select id="theme-choice" onChange={onThemeChange} value={theme}>
+            {THEME_CHOICES.map((choice) => (
+              <option key={choice} value={choice}>
+                {THEME_LABELS[choice]}
+              </option>
+            ))}
+          </select>
+        </div>
       </header>
 
       {stopped && (
         <p className="note note--bad">
-          {stopped.message ?? `核心退出，退出码 ${stopped.code ?? "未知"}`}
+          ✗ {stopped.message ?? `核心退出，退出码 ${stopped.code ?? "未知"}`}
         </p>
       )}
 
@@ -97,9 +134,7 @@ function App() {
           事件流 <span className="stream__count">{events.length}</span>
         </h2>
         {events.length === 0 ? (
-          <p className="note">
-            {ready ? "核心起来了，还没有事件。" : "等核心就绪。"}
-          </p>
+          <p className="note"> {ready ? "核心起来了，还没有事件。" : "等核心就绪。"}</p>
         ) : (
           <ol className="events">
             {events.map((envelope) => (

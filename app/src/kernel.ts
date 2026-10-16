@@ -71,19 +71,23 @@ export type Reply = { ok: unknown } | { err: KernelError };
 export function onKernelEvent(
   handler: (envelope: Envelope) => void,
 ): Promise<UnlistenFn> {
-  return listen<{ envelope: Envelope }>(KERNEL_EVENT, (event) =>
-    handler(event.payload.envelope),
-  );
+  return listen<{ envelope: Envelope }>(KERNEL_EVENT, (event) => {
+    handler(event.payload.envelope);
+  });
 }
 
 export function onKernelReady(handler: (ready: Ready) => void): Promise<UnlistenFn> {
-  return listen<Ready>(KERNEL_READY, (event) => handler(event.payload));
+  return listen<Ready>(KERNEL_READY, (event) => {
+    handler(event.payload);
+  });
 }
 
 export function onKernelStopped(
   handler: (stopped: Stopped) => void,
 ): Promise<UnlistenFn> {
-  return listen<Stopped>(KERNEL_STOPPED, (event) => handler(event.payload));
+  return listen<Stopped>(KERNEL_STOPPED, (event) => {
+    handler(event.payload);
+  });
 }
 
 /** 挂起中的调用：`id` 由这里生成，内核原样带回来。 */
@@ -99,10 +103,15 @@ function wireReplies(): Promise<void> {
   return wired;
 }
 
+function fallbackCallId(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+}
+
 function newCallId(): string {
-  const raw =
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  // `crypto.randomUUID` 要安全上下文：WebView 版本旧或宿主换了源就可能没有。
+  // 类型上它「总是存在」，所以这条防御必须显式压掉 rule（而不是删掉守卫）。
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const raw = globalThis.crypto?.randomUUID?.() ?? fallbackCallId();
   return raw.replace(/-/g, "");
 }
 
@@ -113,10 +122,7 @@ function newCallId(): string {
  * 内核没起来或宿主转发失败时返回 `err(unavailable)`，不抛异常 —— 调用方只需要
  * 看一种失败形状（bus.md §四）。
  */
-export async function callKernel(
-  capability: string,
-  request: unknown,
-): Promise<Reply> {
+export async function callKernel(capability: string, request: unknown): Promise<Reply> {
   await wireReplies();
   const id = newCallId();
   const arrived = new Promise<Reply>((resolve) => {

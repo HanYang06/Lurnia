@@ -1,0 +1,128 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/**
+ * 设计令牌层（路线 093 / 099 / 100）。口径：[docs/design/ui.md](../../../docs/design/ui.md)。
+ *
+ * 三条硬规则（都在 ui.md 里写死，不是这里的约定）：
+ *
+ * 1. **这是全项目唯一允许出现颜色字面量的文件**（ui.md §八）。组件与页面只能写
+ *    `var(--lr-*)`；stylelint 的 `color-no-hex` / `function-disallowed-list` 在这里开洞，
+ *    在别处生效。
+ * 2. **两个方案（深/浅）的令牌名字完全一致，只有值不同**（ui.md §五）。所以组件里
+ *    不允许出现 `if (darkMode)` 分支。`src/styles/tokens.test.ts` 机械检查这条：
+ *    两个块的名字集合必须逐字相等。
+ * 3. **值改这里就要改 ui.md，反之亦然。**测试会拿 ui.md 的令牌表逐格比对，
+ *    包括 `oklch()` 与文档所标十六进制是否互相吻合（实测 22 个令牌逐通道一致）。
+ *
+ * 值一律照抄 ui.md：文档给了 `oklch()` 的就写 `oklch()`，文档只给十六进制的
+ * （`--lr-on-accent`、三态）就写十六进制 —— 不在这里发明文档没有的形式。
+ */
+
+:root {
+  /* --- 方案无关：字体、量度、圆角、间距、动效 ------------------------------ */
+
+  --lr-font-sans:
+    system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  --lr-font-mono: ui-monospace, "Cascadia Mono", consolas, "Courier New", monospace;
+
+  /* 正文行宽上限（ui.md §3.1）：中文约 29 字。窗口拉宽时留白增长，行宽不增长。 */
+  --lr-measure: 58ch;
+
+  /* 圆角（ui.md §4.1）。--lr-radius-app 是应用图标的半径，图标自带圆角。 */
+  --lr-radius-sm: 6px;
+  --lr-radius-md: 8px;
+  --lr-radius-lg: 10px;
+  --lr-radius-xl: 13px;
+  --lr-radius-app: 22%;
+
+  /* 间距基准 4px（ui.md §4.1）：只有这八个值，不允许 5px / 7px / 13px 这类随手值。 */
+  --lr-space-4: 4px;
+  --lr-space-8: 8px;
+  --lr-space-12: 12px;
+  --lr-space-16: 16px;
+  --lr-space-20: 20px;
+  --lr-space-24: 24px;
+  --lr-space-32: 32px;
+  --lr-space-40: 40px;
+
+  /* 动效：短、小、可关（ui.md §4.4）。必须响应 prefers-reduced-motion。 */
+  --lr-dur-fast: 120ms;
+  --lr-dur-base: 180ms;
+  --lr-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* 焦点环（ui.md §4.3）：2px 外环 + 2px 偏移，不得以 outline:none 移除后不补替代物。 */
+  --lr-focus-ring-width: 2px;
+  --lr-focus-ring-offset: 2px;
+}
+
+/**
+ * 深色是主线（ui.md §2.3）。`:root` 不带 data-theme 时也走深色，
+ * 于是「主题还没决定」的那一帧不会是白的。
+ */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* 中性阶梯：色相 196、彩度 0.014 的极轻冷青，不是纯灰（ui.md §2.1）。
+     彩度不得超过 0.02 —— 超过之后深色底会被读成「墨绿」。 */
+  --lr-bg: oklch(0.17 0.014 196);
+  --lr-surface: oklch(0.205 0.014 196);
+  --lr-surface-raised: oklch(0.245 0.014 196);
+  --lr-border: oklch(0.31 0.014 196);
+  --lr-border-strong: oklch(0.53 0.014 196);
+  --lr-text-faint: oklch(0.6 0.014 196);
+  --lr-text-muted: oklch(0.72 0.014 196);
+  --lr-text: oklch(0.88 0.014 196);
+  --lr-text-strong: oklch(0.965 0.014 196);
+
+  /* 强调色：全项目仅此一条色相轴（ui.md §2.2）。明度锁在舒适带内。 */
+  --lr-accent: oklch(0.715 0.122 196);
+  --lr-accent-subtle: oklch(0.285 0.04 196);
+  --lr-on-accent: #071f1f;
+
+  /* 语义三态（ui.md §2.5）：淡底 + 饱和字，不是整块高饱和色块。 */
+  --lr-allow-fill: #162b1c;
+  --lr-allow-ink: #01db71;
+  --lr-deny-fill: #361e1b;
+  --lr-deny-ink: #ff4640;
+  --lr-uncertain-fill: #2f230e;
+  --lr-uncertain-ink: #f0a800;
+}
+
+/**
+ * 浅色是对等的一套，不是附属（ui.md §2.4）：结构不反转，卡片仍然比底色更亮。
+ * 底色不是纯白 —— #fff 刺眼且让正文对比过硬。
+ */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --lr-bg: oklch(0.978 0.014 196);
+  --lr-surface: oklch(0.955 0.014 196);
+  --lr-surface-raised: oklch(0.999 0.014 196);
+  --lr-border: oklch(0.89 0.014 196);
+  --lr-border-strong: oklch(0.635 0.014 196);
+  --lr-text-faint: oklch(0.56 0.014 196);
+  --lr-text-muted: oklch(0.47 0.014 196);
+  --lr-text: oklch(0.31 0.014 196);
+  --lr-text-strong: oklch(0.18 0.014 196);
+
+  /* 强调色：与深色端同一条色相轴，明度按 §2.2 的浅色舒适带（L 0.44–0.56）取。 */
+  --lr-accent: oklch(0.525 0.09 196);
+  --lr-accent-subtle: oklch(0.945 0.04 196);
+  --lr-on-accent: #f6fefd;
+
+  /* 三态与深色端**逐字相同**（theme.md §3.3）：红/绿/琥珀是语义色，不是品牌色。
+     主题包无权改，主题方案更无权改。 */
+  --lr-allow-fill: #dbf5e1;
+  --lr-allow-ink: #007d3d;
+  --lr-deny-fill: #ffe4df;
+  --lr-deny-ink: #d30016;
+  --lr-uncertain-fill: #fbead1;
+  --lr-uncertain-ink: #8e6200;
+}
+
+/**
+ * 主题包（路线 098「水豚」，[theme.md](../../../docs/design/theme.md)）**未实现**：
+ * 它只改这上面的令牌**值**，不改令牌名，作用域是新增的 `[data-pack="capybara"]`。
+ * 本文件先不做，是为了不让一条未做的路线悄悄影响主线取值。
+ */

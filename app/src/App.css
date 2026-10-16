@@ -1,146 +1,168 @@
 /* SPDX-FileCopyrightText: 2026 HanYang06 */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* 占位样式：路线 098 的主题包会整体换掉它。这里只求「看得清、不花」。 */
-
-:root {
-  --bg: #14161a;
-  --panel: #1c1f24;
-  --line: #2c3138;
-  --ink: #e6e8eb;
-  --ink-dim: #9aa3ad;
-  --up: #4cc38a;
-  --wait: #d7a13b;
-  --down: #e06a6a;
-  --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
-  font-size: 14px;
-}
+/*
+ * 占位壳的样式（路线 093 的第一次真实使用）。
+ *
+ * 两条约束来自 ui.md：
+ * 1. **不出现任何颜色字面量** —— 全部走 var(--lr-*)，于是深浅两套自动都对（§八）；
+ * 2. **不出现随手值** —— 间距与圆角引用 §4.1 的令牌，动效引用 §4.4 的令牌。
+ *
+ * 这里**没有**四区布局、没有组件库：那是 094/095/103。本文件里的尺寸（如 960px）
+ * 是占位值，095 会把它们换成栏位预算。
+ */
 
 .shell {
-  max-width: 960px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  max-width: 960px;
+  padding: var(--lr-space-24) var(--lr-space-20) var(--lr-space-40);
 }
 
 .shell__header {
-  display: flex;
   align-items: baseline;
-  gap: 12px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 12px;
+  border-bottom: 1px solid var(--lr-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lr-space-12);
+  padding-bottom: var(--lr-space-12);
 }
 
 .shell__header h1 {
+  color: var(--lr-text-strong);
   font-size: 20px;
   letter-spacing: 0.04em;
   margin: 0;
 }
 
-.badge {
+.shell__theme {
+  align-items: center;
+  color: var(--lr-text-muted);
+  display: flex;
   font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid currentColor;
+  gap: var(--lr-space-8);
+  margin-left: auto;
 }
 
+.shell__theme select {
+  background: var(--lr-surface-raised);
+  border: 1px solid var(--lr-border-strong);
+  border-radius: var(--lr-radius-md);
+  color: var(--lr-text);
+  padding: var(--lr-space-4) var(--lr-space-8);
+  transition: border-color var(--lr-dur-fast) var(--lr-ease);
+}
+
+.shell__theme select:hover {
+  border-color: var(--lr-accent);
+}
+
+.badge {
+  border: 1px solid var(--lr-border-strong);
+  border-radius: var(--lr-radius-sm);
+  color: var(--lr-text-muted);
+  font-size: 12px;
+  padding: var(--lr-space-4) var(--lr-space-8);
+}
+
+/*
+ * 占位壳的内核状态**不是** I2 的三态徽标，所以这里不用 allow/deny/uncertain 的
+ * 语义色（ui.md §八：只有 StateBadge 可以内置三态语义）。状态由文字承载。
+ */
 .badge--up {
-  color: var(--up);
+  color: var(--lr-accent);
 }
 
 .badge--wait {
-  color: var(--wait);
+  color: var(--lr-text-faint);
 }
 
 .badge--down {
-  color: var(--down);
+  color: var(--lr-text-strong);
 }
 
 .note {
-  color: var(--ink-dim);
+  color: var(--lr-text-muted);
 }
 
+/*
+ * 这一处是真的失败提示（核心没起来），用语义色是正当的：先给形状与文字，
+ * 颜色只是冗余的那一层（ui.md §7.3 第 1 条）。
+ */
 .note--bad {
-  color: var(--down);
+  background: var(--lr-deny-fill);
+  border-radius: var(--lr-radius-md);
+  color: var(--lr-deny-ink);
+  padding: var(--lr-space-8) var(--lr-space-12);
 }
 
 .facts {
   display: grid;
+  gap: var(--lr-space-12);
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin: 16px 0 24px;
+  margin: var(--lr-space-16) 0 var(--lr-space-24);
 }
 
 .facts dt {
-  color: var(--ink-dim);
+  color: var(--lr-text-muted);
   font-size: 12px;
 }
 
 .facts dd {
-  margin: 2px 0 0;
-  font-family: var(--mono);
+  font-family: var(--lr-font-mono);
+  margin: var(--lr-space-4) 0 0;
   overflow-wrap: anywhere;
 }
 
 .stream h2 {
+  color: var(--lr-text-muted);
   font-size: 14px;
-  color: var(--ink-dim);
   font-weight: 600;
-  margin: 0 0 8px;
+  margin: 0 0 var(--lr-space-8);
 }
 
 .stream__count {
-  font-family: var(--mono);
+  font-family: var(--lr-font-mono);
 }
 
 .events {
+  border-top: 1px solid var(--lr-border);
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--line);
 }
 
 .events li {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--lr-border);
+  padding: var(--lr-space-8) 0;
 }
 
 .events__head {
-  display: flex;
-  gap: 10px;
   align-items: baseline;
+  display: flex;
   flex-wrap: wrap;
+  gap: var(--lr-space-12);
 }
 
 .events__seq,
 .events__when {
-  color: var(--ink-dim);
-  font-family: var(--mono);
+  color: var(--lr-text-faint);
+  font-family: var(--lr-font-mono);
   font-size: 12px;
 }
 
 .events__topic {
+  color: var(--lr-text);
   font-weight: 600;
 }
 
 .events__who {
-  color: var(--ink-dim);
+  color: var(--lr-text-muted);
 }
 
 .events__payload {
+  color: var(--lr-text-muted);
   display: block;
-  margin-top: 4px;
-  color: var(--ink-dim);
-  font-family: var(--mono);
+  font-family: var(--lr-font-mono);
   font-size: 12px;
+  margin-top: var(--lr-space-4);
   overflow-wrap: anywhere;
 }
