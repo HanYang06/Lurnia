@@ -12,6 +12,7 @@ from __future__ import annotations
 import shutil
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -893,3 +894,84 @@ def test_install_snapshot_rejects_an_empty_statement_list(
     )
     with pytest.raises(StorageError, match="表快照是空的"):
         open_db(tmp_path / "t.db", schema="commentsonly")
+
+
+# --------------------------------------------------------------------------
+# 一个 schema 的家：内核 schema 在 core/sql，业务 schema 归组件包（storage.md §五）
+# --------------------------------------------------------------------------
+
+
+def test_a_component_schema_lives_in_its_own_package() -> None:
+    """业务 DDL 归组件包，不进 `core/` —— 加业务表就不会在内核目录留 diff。"""
+    from lurnia.core import ddl
+
+    assert ddl.schema_package("doc") == ddl.PACKAGE  # 未注册前按内核包找
+    ddl.register_schema("doc", "lurnia.components.doc")
+
+    assert ddl.schema_package("doc") == "lurnia.components.doc"
+    assert highest_version("doc") == 1
+    assert [name for name, _ in read_tables("doc")] == [
+        "doc.sql",
+        "doc_revision.sql",
+    ]
+    assert [version for version, _ in read_schema("doc")] == [1]
+
+
+def test_a_schema_cannot_move_between_packages() -> None:
+    """表名在库里是全局的，`schema_meta` 也按名字记账：重名会在升级时撞号。"""
+    from lurnia.core import ddl
+
+    ddl.register_schema("doc", "lurnia.components.doc")
+    with pytest.raises(DdlError, match="已注册"):
+        ddl.register_schema("doc", "lurnia.components.note")
+    assert ddl.registered_schemas()["doc"] == "lurnia.components.doc"
+
+
+def test_an_unregistered_schema_is_looked_for_in_the_kernel_package() -> None:
+    from lurnia.core import ddl
+
+    assert ddl.schema_package("kernel") == ddl.PACKAGE
+    assert highest_version("kernel") > 0
+
+
+# --------------------------------------------------------------------------
+# 审计必须扫到组件根，否则新根下的 schema 会逃过 I4（script/audit.py）
+# --------------------------------------------------------------------------
+
+
+def _audit_module() -> Any:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "lurnia_audit", ROOT / "script" / "audit.py"
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_audit_finds_both_ddl_roots() -> None:
+    audit = _audit_module()
+    locations = {
+        (schema, package) for schema, package, _dir in audit.schema_locations()
+    }
+    assert ("kernel", "lurnia.core") in locations
+    assert ("doc", "lurnia.components.doc") in locations
+
+
+def test_the_audit_reports_a_schema_declared_in_two_packages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for schema_dir in (
+        tmp_path / "core" / "sql" / "dup",
+        tmp_path / "components" / "x" / "sql" / "dup",
+    ):
+        (schema_dir / "tables").mkdir(parents=True)
+        (schema_dir / "migrations").mkdir()
+
+    audit = _audit_module()
+    monkeypatch.setattr(audit, "KERNEL", tmp_path)
+    problems = audit.schema_drift_violations()
+    assert any("两个包" in problem for problem in problems), problems

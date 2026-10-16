@@ -12,8 +12,9 @@
 * **事件线不在这里拼。** 它们是 :class:`StdioTransport` 这个**传输绑定**把封套的
   wire 字节搬出去的（不变量 I8：封套归内核，传输只搬 bytes）。这里只管控制线
   （`ready` / `error`）与进程生命周期。
-* **stdin 不解析。** 宿主 → 内核的请求走 Tauri IPC，不走 stdio；这里只等 stdin
-  关闭（EOF）就退出，所以宿主没了核心不会变孤儿。
+* **stdin 走 v2 的 ``call`` 帧。** 宿主 → 内核的请求经 Tauri IPC 落到这里，
+  回复走 ``reply`` 帧（packaging.md §五）；读到 EOF 就退出，所以宿主没了核心
+  不会变孤儿。
 
 输出一律用 ``sys.stdout.write``（不用 ``print``）—— stdout 是协议通道，必须精确
 控制字节，且内核层不允许随手打印。
@@ -30,11 +31,14 @@ from typing import Any, TextIO
 
 from lurnia import __version__
 from lurnia.assembly import Core, assemble
+from lurnia.components import install as install_components
 from lurnia.core import conf
-from lurnia.core.contracts import Subject
+from lurnia.core.contracts import Command, Err, ErrKind, Ok, Reply, Subject
 from lurnia.core.storage import KERNEL_SCHEMA
 
-PROTOCOL_VERSION = 1
+#: v2：多了宿主 → 内核的 `call` / `reply` 两帧（路线 115）。
+#: 0.1.0 未发布，所以是干净升级，不做双版本兼容。
+PROTOCOL_VERSION = 2
 
 #: 数据目录的覆盖口子：测试与便携安装用，宿主日常不传（packaging.md §五）。
 DATA_DIR_ENV = "LURNIA_DATA_DIR"
@@ -49,11 +53,14 @@ LOCAL_SUBJECT = Subject(id="local")
 
 
 def _use_utf8(stream: TextIO) -> None:
-    """把协议通道锁成 UTF-8。
+    """把协议通道锁成 UTF-8。**两个方向都要**（v2 起 stdin 也走协议）。
 
     宿主按 UTF-8 解 JSON 行；本机编码一进来（中文 Windows 上是 GBK），中文
     payload 立刻变成乱码甚至解不出来。协议通道的字节必须自己说了算，不能听
     控制台的。测试里注入的 `StringIO` 没有 `reconfigure`，跳过即可。
+
+    > 这条在 v2 上踩过：只锁了 stdout，中文经 `call` 帧进来当场解不开 ——
+    > 是端到端测试（子进程 + 真入口）抓到的，单元测试看不见。
     """
     reconfigure = getattr(stream, "reconfigure", None)
     if callable(reconfigure):
@@ -159,6 +166,71 @@ def _announce_start(core: Core, rotated: int) -> None:
     core.bus.emit_envelope(envelope)
 
 
+def _wire_reply(reply: Reply[Any]) -> dict[str, Any]:
+    """把内核的 `Ok` / `Err` 摊成线上形状。
+
+    `Err` 用共享错误模型（bus.md §四）：跨边界的失败只有这一种形状，
+    调用方不需要 `except Exception`。
+    """
+    if isinstance(reply, Ok):
+        return {"ok": reply.value}
+    return {
+        "err": {
+            "kind": reply.kind.value,
+            "message": reply.message,
+            "retryable": reply.retryable,
+        }
+    }
+
+
+def _handle_line(raw: str, core: Core, out: TextIO) -> None:
+    """处理一行宿主 → 内核的报文。v2 只认 `call`，其余一律显式报错。
+
+    **subject 由内核填**（本机主体），前端不传、也不许造身份（ui.md §九，I6）——
+    所以 `call` 帧里根本没有 subject 字段。
+    """
+    text = raw.strip()
+    if not text:
+        return
+    protocol = {"protocol": PROTOCOL_VERSION}
+    try:
+        frame = json.loads(text)
+    except json.JSONDecodeError as exc:
+        _emit(
+            {"type": "error", **protocol, "message": f"报文不是合法 JSON：{exc}"},
+            stream=out,
+        )
+        return
+    if not isinstance(frame, dict) or frame.get("type") != "call":
+        _emit(
+            {"type": "error", **protocol, "message": "v2 只认 call 帧"},
+            stream=out,
+        )
+        return
+    call_id = frame.get("id")
+    if not isinstance(call_id, str) or not call_id:
+        _emit(
+            {"type": "error", **protocol, "message": "call 帧缺少 id，无法关联回复"},
+            stream=out,
+        )
+        return
+    capability = frame.get("capability")
+    reply: Reply[Any]
+    if not isinstance(capability, str) or not capability:
+        reply = Err(ErrKind.INVALID, "call 帧缺少 capability")
+    else:
+        command = Command(
+            capability=capability,
+            subject=LOCAL_SUBJECT,
+            request=frame.get("request"),
+        )
+        reply = core.bus.invoke(command)
+    _emit(
+        {"type": "reply", **protocol, "id": call_id, "reply": _wire_reply(reply)},
+        stream=out,
+    )
+
+
 def serve(
     *,
     data_dir: str | Path | None = None,
@@ -172,11 +244,13 @@ def serve(
     out = stream if stream is not None else sys.stdout
     source = stdin if stdin is not None else sys.stdin
     _use_utf8(out)
+    _use_utf8(source)  # v2：stdin 也是协议通道，两个方向都锁 UTF-8
     if data_dir is None:
         data_dir = _data_dir_from_env()
 
     try:
         core = assemble(data_dir, transport=StdioTransport(out))
+        install_components(core)  # 组件装配台：注册文档类型与能力（路线 108 / 114）
     except Exception as exc:  # 起不来必须报给宿主，不能只留 traceback
         _emit(
             {
@@ -203,9 +277,9 @@ def serve(
             stream=out,
         )
         _announce_start(core, rotated)
-        # v1 不解析 stdin：等 EOF 就是等宿主收摊
-        for _line in source:
-            pass
+        # v2：解析 stdin。EOF 仍然是退出的信号（生命周期归宿主）
+        for line in source:
+            _handle_line(line, core, out)
     except Exception as exc:  # 同上：宿主需要一行能读懂的失败
         _emit(
             {
@@ -244,6 +318,18 @@ def self_check() -> int:
         problems.append(f"读不到 DDL 资源：{exc}")
         migrations, tables = [], []
 
+    # **文档 schema 资源**：`.json` 同样不会被 PyInstaller 自动收集（editor.md §4.5）。
+    # 漏了它 = 装完之后一存文档就报「没有注册过的文档类型」——所以和 `.sql` 同级验。
+    doc_types: list[str] = []
+    try:
+        from lurnia.components import NOTE_PACKAGE, NOTE_SCHEMA, load_schema
+        from lurnia.components.doc import compile_schema
+
+        compiled = compile_schema(load_schema(NOTE_PACKAGE, NOTE_SCHEMA))
+        doc_types = sorted(compiled.allowed)
+    except Exception as exc:
+        problems.append(f"读不到文档 schema 资源：{exc}")
+
     version = 0
     if not problems:
         with tempfile.TemporaryDirectory() as scratch:
@@ -264,6 +350,7 @@ def self_check() -> int:
             "executable": sys.executable,
             "ddl_migrations": [v for v, _ in migrations],
             "ddl_tables": [name for name, _ in tables],
+            "doc_schema_types": doc_types,
             "expected_version": highest_version(KERNEL_SCHEMA) if migrations else None,
             "migrated_to": version,
             "problems": problems,

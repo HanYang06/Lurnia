@@ -47,6 +47,12 @@ NAME = "lurnia-core"
 # artifact is pure runtime and carries no prose.
 OPTIMIZE = 2
 
+#: Runtime data files that must ride along. PyInstaller only auto-collects Python
+#: modules, so both of these need an explicit ``--add-data``: `.sql` is the DDL,
+#: `.json` is a document type's schema resource (editor.md §4.5). A missing one
+#: only shows up **after installation** — hence the self-check.
+DATA_SUFFIXES = (".sql", ".json")
+
 
 class BuildError(Exception):
     """The sidecar build failed."""
@@ -83,17 +89,21 @@ def data_separator() -> str:
 def collect_data_files() -> list[tuple[Path, str]]:
     """Every non-Python resource the core needs at runtime.
 
-    Discovered from the source tree rather than hard-coded: a new ``.sql`` under
-    the package is picked up automatically, and a rename cannot silently drop it.
+    Discovered from the source tree rather than hard-coded: a new ``.sql`` or
+    schema ``.json`` under the package is picked up automatically, and a rename
+    cannot silently drop it. The ``.json`` half matters as much as the ``.sql``
+    half — a document type's schema is data too, and a missing one only shows up
+    after installation (editor.md §4.5).
     """
     found: list[tuple[Path, str]] = []
-    for path in sorted(PACKAGE.rglob("*.sql")):
-        relative = path.relative_to(SRC).parent
-        found.append((path, str(relative).replace("\\", "/")))
-    if not found:
+    for suffix in DATA_SUFFIXES:
+        for path in sorted(PACKAGE.rglob(f"*{suffix}")):
+            relative = path.relative_to(SRC).parent
+            found.append((path, str(relative).replace("\\", "/")))
+    if not any(path.suffix == ".sql" for path, _destination in found):
         msg = f"在 {PACKAGE} 下找不到任何 .sql —— 内核没有 DDL 无法建库"
         raise BuildError(msg)
-    return found
+    return sorted(found)
 
 
 def clean() -> None:

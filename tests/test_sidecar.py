@@ -87,7 +87,7 @@ def test_sidecar_version_reports_protocol() -> None:
     code, payloads = _run_sidecar(None, "--version")
     assert code == 0
     assert payloads[0]["type"] == "version"
-    assert payloads[0]["protocol"] == 1
+    assert payloads[0]["protocol"] == 2
     assert payloads[0]["version"]
 
 
@@ -132,7 +132,10 @@ def test_the_data_dir_flag_also_accepts_an_equals_sign(tmp_path: pathlib.Path) -
 def test_serve_reads_stdin_and_stops_at_eof(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """v1 does not parse stdin: a line is read and ignored, EOF ends the process."""
+    """v2 parses stdin: a line that is not a `call` gets one explicit error frame.
+
+    EOF still ends the process — the host owns the lifetime (packaging.md §五).
+    """
     import io
 
     from lurnia import sidecar
@@ -155,8 +158,10 @@ def test_serve_reads_stdin_and_stops_at_eof(
     )
 
     assert code == 0
-    kinds = [json.loads(line)["type"] for line in stream.getvalue().splitlines()]
-    assert kinds == ["ready", "event"], kinds
+    frames = [json.loads(line) for line in stream.getvalue().splitlines()]
+    kinds = [frame["type"] for frame in frames]
+    assert kinds == ["ready", "event", "error"], kinds
+    assert frames[2]["message"] == "v2 只认 call 帧"
 
 
 # --------------------------------------------------------------------------
@@ -170,7 +175,7 @@ def test_ready_is_the_first_line_and_names_the_data_dir(tmp_path: pathlib.Path) 
     assert code == 0
     ready = payloads[0]
     assert ready["type"] == "ready"
-    assert ready["protocol"] == 1
+    assert ready["protocol"] == 2
     assert ready["data_dir"] == str(tmp_path)
     assert ready["db_version"] == 2
     assert ready["rotated"] == 0
@@ -338,7 +343,7 @@ def test_the_transport_writes_one_event_line_and_has_no_back_channel() -> None:
 
     line = json.loads(stream.getvalue().strip())
     assert line["type"] == "event"
-    assert line["protocol"] == 1
+    assert line["protocol"] == 2
     assert line["envelope"]["topic"] == "note.changed"
     assert line["envelope"]["seq"] == 7
     assert line["envelope"]["payload"] == {"a": 1}
@@ -479,18 +484,26 @@ def test_build_script_finds_every_sql_file(build_module: Any) -> None:
     """A new .sql must be picked up automatically, not remembered by hand."""
     found = build_module.collect_data_files()
     package_sql = sorted((ROOT / "src" / "lurnia").rglob("*.sql"))
-    assert len(found) == len(package_sql), (
-        f"build script found {len(found)} data files, source has {len(package_sql)}"
-    )
+    assert sum(1 for path, _destination in found if path.suffix == ".sql") == len(
+        package_sql
+    ), f"build script missed a .sql: {package_sql}"
 
 
-def test_build_script_maps_sql_to_package_relative_destinations(
+def test_build_script_finds_every_schema_resource(build_module: Any) -> None:
+    """A document schema is a data file too — same packaging risk as `.sql`."""
+    found = {path for path, _destination in build_module.collect_data_files()}
+    schemas = set((ROOT / "src" / "lurnia").rglob("*.json"))
+    assert schemas
+    assert schemas <= found, f"build script missed: {schemas - found}"
+
+
+def test_build_script_maps_data_to_package_relative_destinations(
     build_module: Any,
 ) -> None:
     """The destination must match the path ``importlib.resources`` will read."""
     for source, destination in build_module.collect_data_files():
         assert destination.startswith("lurnia/")
-        assert source.suffix == ".sql"
+        assert source.suffix in {".sql", ".json"}
         assert "\\" not in destination
 
 
@@ -569,3 +582,197 @@ def _self_check_capture() -> tuple[int, dict[str, object]]:
         code = sidecar.self_check()
     payload = json.loads(buffer.getvalue().strip().splitlines()[-1])
     return code, payload
+
+
+# --------------------------------------------------------------------------
+# protocol v2: host → kernel calls (route 115)
+# --------------------------------------------------------------------------
+
+
+def _note_doc(text: str = "第一段") -> dict[str, object]:
+    import uuid
+
+    return {
+        "doc_type": "note",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "id": uuid.uuid4().hex,
+                "content": [{"type": "text", "text": text}],
+            }
+        ],
+    }
+
+
+def _serve_with_calls(tmp_path: pathlib.Path, lines: list[str]) -> list[dict[str, Any]]:
+    """Run the sidecar **as a subprocess** with ``lines`` on stdin, collect frames.
+
+    A subprocess, not an in-process ``serve``: the config layer binds OnConf once
+    per process (``conf.py``), so several in-process runs with different data
+    directories cannot coexist. Running the real entry point is also the more
+    honest test — it exercises assembly + component install + the call loop.
+    """
+    command = [sys.executable, "-m", "lurnia.sidecar", "--data-dir", str(tmp_path)]
+    proc = subprocess.run(
+        command,
+        input="".join(line + "\n" for line in lines),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        cwd=ROOT,
+        env=dict(os.environ),
+    )
+    assert proc.returncode == 0, proc.stderr
+    return [
+        json.loads(line) for line in proc.stdout.splitlines() if line.startswith("{")
+    ]
+
+
+def _save_call(call_id: str, doc: dict[str, object]) -> str:
+    request = {
+        "doc_id": "n1",
+        "body": json.dumps(doc, ensure_ascii=False),
+        "base_revision": 0,
+        "commit": True,
+    }
+    return json.dumps(
+        {
+            "type": "call",
+            "protocol": 2,
+            "id": call_id,
+            "capability": "doc.save",
+            "request": request,
+        },
+        ensure_ascii=False,
+    )
+
+
+def _replies(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [frame for frame in frames if frame["type"] == "reply"]
+
+
+def test_a_call_reaches_a_capability_and_comes_back_as_a_reply(
+    tmp_path: pathlib.Path,
+) -> None:
+    replies = _replies(_serve_with_calls(tmp_path, [_save_call("c1", _note_doc())]))
+    assert len(replies) == 1
+    assert replies[0]["id"] == "c1"
+    assert replies[0]["protocol"] == 2
+    assert replies[0]["reply"]["ok"]["revision"] == 1
+
+
+def test_what_was_written_over_the_protocol_reads_back(tmp_path: pathlib.Path) -> None:
+    doc = _note_doc("协议往返")
+    get = json.dumps(
+        {
+            "type": "call",
+            "id": "c2",
+            "capability": "doc.get",
+            "request": {"doc_id": "n1"},
+        },
+        ensure_ascii=False,
+    )
+    replies = _replies(_serve_with_calls(tmp_path, [_save_call("c1", doc), get]))
+    got = replies[1]["reply"]["ok"]
+    assert got["doc_type"] == "note"
+    assert got["body"] == doc
+    assert got["revision"] == 1
+
+
+def test_the_subject_comes_from_the_kernel_not_the_caller(
+    tmp_path: pathlib.Path,
+) -> None:
+    """I6: the kernel fills the subject; a smuggled one in the frame is ignored."""
+    import sqlite3
+
+    frame = json.loads(_save_call("c1", _note_doc()))
+    frame["subject"] = {"id": "attacker", "kind": "local_user"}
+    _serve_with_calls(tmp_path, [json.dumps(frame, ensure_ascii=False)])
+
+    conn = sqlite3.connect(tmp_path / "lurnia.db")
+    try:
+        subjects = {row[0] for row in conn.execute("SELECT subject_id FROM event_log")}
+    finally:
+        conn.close()
+    assert subjects == {"local"}
+
+
+def test_unknown_capability_comes_back_as_no_provider(tmp_path: pathlib.Path) -> None:
+    line = json.dumps(
+        {"type": "call", "id": "c1", "capability": "nope.nope", "request": {}}
+    )
+    replies = _replies(_serve_with_calls(tmp_path, [line]))
+    assert replies[0]["reply"]["err"]["kind"] == "no_provider"
+
+
+def test_a_malformed_line_is_one_error_frame_and_the_loop_continues(
+    tmp_path: pathlib.Path,
+) -> None:
+    frames = _serve_with_calls(tmp_path, ["这不是 JSON", _save_call("c1", _note_doc())])
+    errors = [frame for frame in frames if frame["type"] == "error"]
+    assert len(errors) == 1
+    assert "JSON" in str(errors[0]["message"])
+    assert _replies(frames)[0]["reply"]["ok"]["revision"] == 1
+
+
+def test_a_non_call_frame_is_rejected(tmp_path: pathlib.Path) -> None:
+    line = json.dumps({"type": "event", "id": "c1"})
+    errors = [
+        frame
+        for frame in _serve_with_calls(tmp_path, [line])
+        if frame["type"] == "error"
+    ]
+    assert errors[0]["message"] == "v2 只认 call 帧"
+
+
+def test_a_call_without_an_id_cannot_be_answered(tmp_path: pathlib.Path) -> None:
+    line = json.dumps({"type": "call", "capability": "doc.get", "request": {}})
+    errors = [
+        frame
+        for frame in _serve_with_calls(tmp_path, [line])
+        if frame["type"] == "error"
+    ]
+    assert "id" in str(errors[0]["message"])
+
+
+def test_a_call_without_a_capability_gets_an_invalid_reply(
+    tmp_path: pathlib.Path,
+) -> None:
+    line = json.dumps({"type": "call", "id": "c1", "request": {}})
+    replies = _replies(_serve_with_calls(tmp_path, [line]))
+    assert replies[0]["reply"]["err"]["kind"] == "invalid"
+
+
+def test_a_blank_line_is_ignored(tmp_path: pathlib.Path) -> None:
+    frames = _serve_with_calls(tmp_path, ["", "   "])
+    assert [frame["type"] for frame in frames] == ["ready", "event"]
+
+
+def test_self_check_reports_the_doc_schema() -> None:
+    """The schema resource is a `.json`: the same packaging risk as `.sql` (§4.5)."""
+    _code, payloads = _run_sidecar(None, "--self-check")
+    types = payloads[0]["doc_schema_types"]
+    assert isinstance(types, list)
+    assert "paragraph" in types
+    assert "table_cell" in types
+
+
+def test_self_check_reports_an_unreadable_doc_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the schema resource is missing from the artifact, say so — don't pass."""
+    from lurnia import components
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        msg = "no such resource"
+        raise FileNotFoundError(msg)
+
+    monkeypatch.setattr(components, "load_schema", boom)
+    code, payload = _self_check_capture()
+    assert code == 1
+    problems = payload["problems"]
+    assert isinstance(problems, list)
+    assert any("schema" in str(p) for p in problems), problems

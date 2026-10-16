@@ -1,0 +1,34 @@
+{
+  "doc_type": "note",
+  "version": 1,
+  "root": [
+    "paragraph",
+    "heading",
+    "bullet_list",
+    "ordered_list",
+    "quote",
+    "code_block",
+    "divider",
+    "table",
+    "image",
+    "attachment",
+    "doc_ref"
+  ],
+  "nodes": {
+    "paragraph": {"content": ["text"]},
+    "heading": {"content": ["text"], "attrs": ["level"]},
+    "bullet_list": {"content": ["list_item"]},
+    "ordered_list": {"content": ["list_item"]},
+    "list_item": {"content": ["paragraph", "bullet_list", "ordered_list"]},
+    "quote": {"content": ["paragraph", "bullet_list", "ordered_list"]},
+    "code_block": {"content": ["text"], "attrs": ["language"]},
+    "divider": {"content": []},
+    "table": {"content": ["table_row"], "attrs": ["widths"]},
+    "table_row": {"content": ["table_cell"]},
+    "table_cell": {"content": ["text"], "attrs": ["header"]},
+    "image": {"content": [], "attrs": ["attachment_id", "alt"]},
+    "attachment": {"content": [], "attrs": ["attachment_id", "name"]},
+    "doc_ref": {"content": [], "attrs": ["doc_id", "block_id", "display"]}
+  },
+  "marks": ["strong", "em", "strike", "code", "link", "highlight"]
+}

@@ -11,9 +11,15 @@
 | ``tables/`` | **当前形状的快照**，一个表一个文件 | 全新安装；写代码时查表结构 |
 | ``migrations/`` | **历史**，``NNNN`` = 目标版本，只增不改 | 早于该版本的旧库 |
 
-**为什么必须是包内。** 桌面包是打包分发的，只有包内的东西才会进 wheel：
-实测 `uv build` 产出的 wheel 里只有 `lurnia/**`，仓库根的 `config/` 与任何
-仓根 `.sql` 都**不在其中**。放仓根等于"开发时能跑、装完就炸"。
+**为什么必须是包内。** APP 是打包分发的（宿主 + PyInstaller sidecar），而 PyInstaller
+只收包内的东西：仓库根的 `config/` 与任何仓根 `.sql` **不在产物里**，放仓根等于
+"开发时能跑、装完就炸"。这不是 wheel 论证 —— `uv build` 产出的是发 PyPI 用的分发物，
+本项目不发 PyPI，口径见 [storage.md §五](../../../docs/design/storage.md) 的更正。
+
+**包内哪一处**（[storage.md §五](../../../docs/design/storage.md)）：内核 schema 在
+`core/sql/kernel/`（`event_log` / `attachment` 本就是内核层的表）；
+**业务 schema 归组件包**，放 `components/<组件名>/sql/<schema>/`。写死的 `PACKAGE`
+根在出现第一个业务 schema 时要换成「schema → 包」的解析 —— 设计已定、代码待补。
 
 **为什么自己切分语句。** `sqlite3.complete_statement` 是标准库自带的，
 它认得字符串字面量里的分号和 `BEGIN ... END` 触发器体，所以不需要引第三方
@@ -47,18 +53,52 @@ def use_sql_root(root: object | None) -> None:
     _override = root
 
 
-def sql_root() -> object:
-    return _override if _override is not None else resources.files(PACKAGE)
+def sql_root(schema: str | None = None) -> object:
+    """DDL 的家：**schema 注册在哪个包就是哪个包**。
+
+    测试可以用 ``use_sql_root`` 整体覆盖。
+    """
+    if _override is not None:
+        return _override
+    return resources.files(schema_package(schema) if schema else PACKAGE)
 
 
 class DdlError(Exception):
     """DDL 资源的加载或解析失败。"""
 
 
+#: schema -> 包名。内核 schema 缺省在 `lurnia.core`；**业务 schema 由组件自己注册**
+#: （storage.md §五）：`register_schema("doc", "lurnia.components.doc")`。
+_registry: dict[str, str] = {}
+
+
+def register_schema(schema: str, package: str) -> None:
+    """声明一个 schema 的 DDL 住在哪个包里。
+
+    同一个 schema 名不能在两个包里各有一份 —— 表名在库里是全局的，
+    `schema_meta` 也按名字记账，重名会在升级时互相撞号。
+    """
+    existing = _registry.get(schema)
+    if existing is not None and existing != package:
+        msg = f"schema {schema!r} 已注册在 {existing}，不能改注册到 {package}"
+        raise DdlError(msg)
+    _registry[schema] = package
+
+
+def schema_package(schema: str) -> str:
+    """这个 schema 的 DDL 在哪个包里。没注册过就按内核包找。"""
+    return _registry.get(schema, PACKAGE)
+
+
+def registered_schemas() -> dict[str, str]:
+    return dict(_registry)
+
+
 def _files(schema: str, section: str) -> Iterator[tuple[str, object]]:
-    root = sql_root().joinpath(SQL_ROOT, schema, section)  # type: ignore[attr-defined]
+    package = schema_package(schema)
+    root = sql_root(schema).joinpath(SQL_ROOT, schema, section)  # type: ignore[attr-defined]
     if not root.is_dir():
-        msg = f"找不到 DDL 目录：{PACKAGE}/{SQL_ROOT}/{schema}/{section}"
+        msg = f"找不到 DDL 目录：{package}/{SQL_ROOT}/{schema}/{section}"
         raise DdlError(msg)
     for entry in sorted(root.iterdir(), key=lambda p: p.name):
         if entry.name.endswith(".sql"):
@@ -156,7 +196,7 @@ def read_schema(schema: str) -> list[tuple[int, list[str]]]:
     out: list[tuple[int, list[str]]] = []
     for version, name in migration_files(schema):
         text = (
-            sql_root()  # type: ignore[attr-defined]
+            sql_root(schema)  # type: ignore[attr-defined]
             .joinpath(SQL_ROOT, schema, MIGRATIONS, name)
             .read_text(encoding="utf-8")
         )
@@ -169,7 +209,7 @@ def read_tables(schema: str) -> list[tuple[str, list[str]]]:
     out: list[tuple[str, list[str]]] = []
     for name in table_files(schema):
         text = (
-            sql_root()  # type: ignore[attr-defined]
+            sql_root(schema)  # type: ignore[attr-defined]
             .joinpath(SQL_ROOT, schema, TABLES, name)
             .read_text(encoding="utf-8")
         )
