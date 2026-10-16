@@ -70,6 +70,14 @@ export default {
 
     // 装饰性 `!important` 是坏味道；base.css 里「动效可关」那一条是有意的例外。
     "declaration-no-important": true,
+
+    // grid-template 的三件套（areas / columns / rows）**分开写才读得懂**：这个布局
+    // 用命名区域表达五栏位，合成一行 shorthand 会把区域名淹没在一串长度里。
+    // 所以只关掉「建议合并 grid-template」这一条建议，其余长手属性照旧要求合并。
+    "declaration-block-no-redundant-longhand-properties": [
+      true,
+      { ignoreShorthands: ["grid-template"] },
+    ],
   },
 
   overrides: [

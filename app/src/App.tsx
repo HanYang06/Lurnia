@@ -1,18 +1,25 @@
 // SPDX-FileCopyrightText: 2026 HanYang06
 // SPDX-License-Identifier: Apache-2.0
 /**
- * 壳：显示宿主转发的内核状态与事件流（路线 009 / 105）。
+ * Lurnia 的界面外壳（路线 095）与它上面挂着的那些面板。
  *
- * 这个界面刻意什么业务都不做 —— 它要证明的是**通道通了**：核心起来、封套能到、
- * 顺序可读。真正的笔记 / 项目界面是后面的事。
+ * 这一版**刻意没有业务**：笔记 / 项目 / 权限 / AI 四个模块都只有空态，因为对应的
+ * 内核能力还没接。真正有的是三样东西 —— 内核状态、事件流（路线 009 / 105 的验收物），
+ * 以及一条能跑通的主题切换。空态写成「为什么是空的」，不拿假数据撑场面。
  *
- * 样式上它已经是令牌层（093）的真实使用者：**一条颜色字面量都没有**，
- * 深浅两套配色自动都对。四区布局（095）与组件库（094 / 103）还没做，
- * 所以这里只有一个占位壳 —— 连主题切换控件也刻意做得最小，够验收 096/097 就行。
+ * 布局本身在 [shell/Shell.tsx](shell/Shell.tsx)；这里只负责给六个区准备内容，
+ * 并持有界面状态（当前模块、选中条目、两个折叠开关、窄窗口下的前后台）。
  */
 
 import { useEffect, useState, type ChangeEvent } from "react";
 
+import {
+  Select,
+  StateBadge,
+  Tag,
+  type Decision,
+  type SelectOption,
+} from "./components";
 import {
   onKernelEvent,
   onKernelReady,
@@ -21,6 +28,23 @@ import {
   type Ready,
   type Stopped,
 } from "./kernel";
+import {
+  AiIcon,
+  Inspector,
+  ListPane,
+  LogSpine,
+  NavRail,
+  NoteIcon,
+  PermissionIcon,
+  ProjectIcon,
+  ReadPane,
+  SettingsIcon,
+  Shell,
+  type ListEntry,
+  type NavModule,
+  type ShellLayout,
+  type VersionNode,
+} from "./shell";
 import {
   THEME_CHOICES,
   currentChoice,
@@ -33,18 +57,64 @@ import "./App.css";
 /** 界面上只留最近这么多条，别让一个长跑的核心把内存撑起来。 */
 const MAX_ROWS = 50;
 
+const MODULES: readonly NavModule[] = [
+  { id: "notes", label: "笔记", icon: <NoteIcon /> },
+  { id: "projects", label: "项目", icon: <ProjectIcon /> },
+  { id: "permissions", label: "权限", icon: <PermissionIcon /> },
+  { id: "ai", label: "AI", icon: <AiIcon /> },
+];
+
+const SETTINGS: NavModule = { id: "settings", label: "设置", icon: <SettingsIcon /> };
+
+/** 模块名与它们的空态理由。理由写出来，是为了让「还没做」与「做坏了」能区分开。 */
+const MODULE_COPY: Record<string, { title: string; why: string }> = {
+  notes: {
+    title: "笔记",
+    why: "笔记模块的界面还没做：它要等 doc 能力的读接口（列文档、取正文、取版本链）从内核侧露出来。",
+  },
+  projects: {
+    title: "项目",
+    why: "项目模块的界面还没做：项目与文档的归属关系还没有调用平面接口。",
+  },
+  permissions: {
+    title: "权限",
+    why: "权限模块的界面还没做。这一块会用到 StateBadge —— 判定结果是三态（allow / deny / uncertain），界面不许把它压成布尔（I2）。",
+  },
+  ai: {
+    title: "AI",
+    why: "AI 模块的界面还没做。按 I9，任何对外动作都必须由用户显式发起，所以这里将来也不会有「自动联网」的按钮。",
+  },
+};
+
+const SETTINGS_ENTRIES: readonly ListEntry[] = [
+  { id: "appearance", label: "外观" },
+  { id: "events", label: "事件日志" },
+  { id: "about", label: "关于" },
+];
+
 const THEME_LABELS: Record<ThemeChoice, string> = {
   system: "跟随系统",
   dark: "深色",
   light: "浅色",
 };
 
+const THEME_OPTIONS: readonly SelectOption[] = THEME_CHOICES.map((choice) => ({
+  value: choice,
+  label: THEME_LABELS[choice],
+}));
+
 function App() {
   const [ready, setReady] = useState<Ready | null>(null);
   const [stopped, setStopped] = useState<Stopped | null>(null);
   const [events, setEvents] = useState<Envelope[]>([]);
-  // main.tsx 已经 initTheme 过了，这里只是把模块里的当前选择读进 React。
   const [theme, setTheme] = useState<ThemeChoice>(currentChoice);
+  const [module, setModule] = useState("notes");
+  const [entry, setEntry] = useState<string | null>(null);
+  const [layout, setLayout] = useState<ShellLayout>({
+    inspectorOpen: true,
+    listOpen: true,
+    pane: "read",
+  });
 
   useEffect(() => {
     // 订阅是异步拿到的句柄：卸载时如果还没拿到，拿到后立刻退订，
@@ -81,80 +151,221 @@ function App() {
     }
   };
 
-  const status = stopped ? "核心已退出" : ready ? "核心已就绪" : "等待核心…";
+  const selectModule = (id: string) => {
+    setModule(id);
+    setEntry(id === "settings" ? "appearance" : null);
+  };
+
+  const selectEntry = (id: string) => {
+    setEntry(id);
+    setLayout((current) => ({ ...current, pane: "read" }));
+  };
+
+  const isSettings = module === "settings";
+  const copy = MODULE_COPY[module] ?? { title: "设置", why: "" };
+  const entries = isSettings ? SETTINGS_ENTRIES : [];
+  const selectedLabel = entries.find((item) => item.id === entry)?.label ?? null;
+
+  // 版本时间线（§3.2）的数据源是 doc 能力的版本链，还没接 —— 空态是诚实的。
+  const versions: readonly VersionNode[] = [];
+
+  // 「关于」页里的三态说明：给 StateBadge 一个真实用处，也顺便把 I2 摆在界面上。
+  const decisions: readonly Decision[] = ["allow", "deny", "uncertain"];
+
+  // 读面的内容由选中的条目决定。函数声明会提升，所以 renderRead 写在 return 之后；
+  // 这里先取一次，让下面的 JSX 里只有一个名字。
+  const readBody = renderRead();
 
   return (
-    <main className="shell">
-      <header className="shell__header">
-        <h1>Lurnia</h1>
-        <span className={`badge badge--${stopped ? "down" : ready ? "up" : "wait"}`}>
-          {status}
-        </span>
-        <div className="shell__theme">
-          <label htmlFor="theme-choice">主题</label>
-          <select id="theme-choice" onChange={onThemeChange} value={theme}>
-            {THEME_CHOICES.map((choice) => (
-              <option key={choice} value={choice}>
-                {THEME_LABELS[choice]}
-              </option>
-            ))}
-          </select>
+    <Shell
+      inspector={
+        <Inspector title="内核">
+          {ready ? (
+            <dl className="facts">
+              <div>
+                <dt>版本</dt>
+                <dd>{ready.version}</dd>
+              </div>
+              <div>
+                <dt>数据库版本</dt>
+                <dd>v{ready.db_version}</dd>
+              </div>
+              <div>
+                <dt>启动时归档</dt>
+                <dd>{ready.rotated} 条</dd>
+              </div>
+              <div>
+                <dt>数据目录</dt>
+                <dd title={ready.data_dir}>{ready.data_dir}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="note">{stopped ? "核心没起来" : "等核心就绪…"}</p>
+          )}
+          <p className="note">
+            <Tag>本地</Tag>
+          </p>
+          <p className="note">
+            数据只在本机。按 I9，界面不会自己联网、开端口或拉起第三方程序。
+          </p>
+        </Inspector>
+      }
+      layout={layout}
+      list={
+        <ListPane
+          active={entry}
+          empty={
+            isSettings
+              ? "这个模块没有条目。"
+              : "还没有条目。等内核把列文档的接口露出来，这里就会是笔记 / 项目 / 权限判定的集合。"
+          }
+          entries={entries}
+          onSelect={selectEntry}
+          title={isSettings ? "设置" : copy.title}
+        />
+      }
+      nav={
+        <NavRail
+          active={module}
+          modules={MODULES}
+          onSelect={selectModule}
+          settings={SETTINGS}
+        />
+      }
+      onToggleInspector={() => {
+        setLayout((current) => ({
+          ...current,
+          inspectorOpen: !current.inspectorOpen,
+        }));
+      }}
+      onToggleList={() => {
+        setLayout((current) => ({ ...current, listOpen: !current.listOpen }));
+      }}
+      read={
+        <ReadPane
+          onBack={() => {
+            setLayout((current) => ({ ...current, pane: "list" }));
+          }}
+          title={selectedLabel ?? copy.title}
+        >
+          {readBody}
+        </ReadPane>
+      }
+      spine={<LogSpine versions={versions} />}
+      status={
+        <>
+          <span className="status__dot" data-state={kernelState(ready, stopped)} />
+          <span>{kernelLabel(ready, stopped)}</span>
+          <span>事件 {events.length}</span>
+          <span>版本 {versions.length}</span>
+        </>
+      }
+    />
+  );
+
+  function renderRead() {
+    if (entry === "appearance") {
+      return (
+        <div className="stack">
+          <Select
+            label="主题"
+            onChange={onThemeChange}
+            options={THEME_OPTIONS}
+            value={theme}
+          />
+          <p className="note">
+            默认跟随系统，也可以锁定深色或浅色。切换是<strong>瞬时</strong>的 ——
+            全屏渐变会让人短暂失去方向感，所以不做（ui.md §五）。
+          </p>
+          <p className="note">
+            颜色全部来自语义令牌，深浅两套的令牌名逐字相同，所以组件里没有
+            「现在是深是浅」这种分支。
+          </p>
         </div>
-      </header>
+      );
+    }
 
-      {stopped && (
-        <p className="note note--bad">
-          ✗ {stopped.message ?? `核心退出，退出码 ${stopped.code ?? "未知"}`}
-        </p>
-      )}
+    if (entry === "events") {
+      return (
+        <div className="stack">
+          <p className="note">
+            内核广播平面推过来的封套，最新的在最上面。这一页是路线 009 / 105 的验收物：
+            它证明通道是通的，不是证明业务做完了。
+          </p>
+          {events.length === 0 ? (
+            <p className="note">
+              {ready ? "核心起来了，还没有事件。" : "等核心就绪。"}
+            </p>
+          ) : (
+            <ol className="events">
+              {events.map((envelope) => (
+                <li key={envelope.id}>
+                  <div className="events__head">
+                    <span className="events__seq">#{envelope.seq}</span>
+                    <span className="events__topic">{envelope.topic}</span>
+                    <span className="events__who">{envelope.subject.id}</span>
+                    <time className="events__when">{envelope.ts_wall}</time>
+                  </div>
+                  <code className="events__payload">
+                    {JSON.stringify(envelope.payload)}
+                  </code>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      );
+    }
 
-      {ready && (
-        <dl className="facts">
-          <div>
-            <dt>版本</dt>
-            <dd>{ready.version}</dd>
-          </div>
-          <div>
-            <dt>数据库版本</dt>
-            <dd>v{ready.db_version}</dd>
-          </div>
-          <div>
-            <dt>启动时归档</dt>
-            <dd>{ready.rotated} 条</dd>
-          </div>
-          <div>
-            <dt>数据目录</dt>
-            <dd title={ready.data_dir}>{ready.data_dir}</dd>
-          </div>
-        </dl>
-      )}
-
-      <section className="stream">
-        <h2>
-          事件流 <span className="stream__count">{events.length}</span>
-        </h2>
-        {events.length === 0 ? (
-          <p className="note"> {ready ? "核心起来了，还没有事件。" : "等核心就绪。"}</p>
-        ) : (
-          <ol className="events">
-            {events.map((envelope) => (
-              <li key={envelope.id}>
-                <div className="events__head">
-                  <span className="events__seq">#{envelope.seq}</span>
-                  <span className="events__topic">{envelope.topic}</span>
-                  <span className="events__who">{envelope.subject.id}</span>
-                  <time className="events__when">{envelope.ts_wall}</time>
-                </div>
-                <code className="events__payload">
-                  {JSON.stringify(envelope.payload)}
-                </code>
+    if (entry === "about") {
+      return (
+        <div className="stack">
+          <p className="note">
+            Lurnia 是一个桌面 APP：Python 核心作为 sidecar 由 Tauri 宿主拉起，界面跑在
+            WebView 里。它不开浏览器、不起服务、不自己联网。
+          </p>
+          {stopped && (
+            <p className="note note--bad">
+              ✗ {stopped.message ?? `核心退出，退出码 ${stopped.code ?? "未知"}`}
+            </p>
+          )}
+          <h2 className="heading">判定的三种结果</h2>
+          <p className="note">
+            内核的判定是<strong>三态</strong>
+            ，不是布尔。三者在界面上同级：同样的明度与彩度，
+            只有色相不同，并且各自带形状与文字 —— 颜色不单独承载语义（ui.md §2.5）。
+          </p>
+          <ul className="decisions">
+            {decisions.map((decision) => (
+              <li key={decision}>
+                <StateBadge decision={decision} />
               </li>
             ))}
-          </ol>
-        )}
-      </section>
-    </main>
-  );
+          </ul>
+        </div>
+      );
+    }
+
+    return (
+      <div className="stack">
+        <p className="note">{copy.why}</p>
+      </div>
+    );
+  }
+}
+
+function kernelState(ready: Ready | null, stopped: Stopped | null): string {
+  if (stopped) {
+    return "down";
+  }
+  return ready ? "up" : "wait";
+}
+
+function kernelLabel(ready: Ready | null, stopped: Stopped | null): string {
+  if (stopped) {
+    return "核心已退出";
+  }
+  return ready ? "核心已就绪" : "等待核心…";
 }
 
 export default App;
