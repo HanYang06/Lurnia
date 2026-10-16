@@ -144,7 +144,7 @@ class Bus:
         cause: str | None = None,
     ) -> int:
         """广播。允许没人接，返回投递数。"""
-        envelope = self._envelope(topic, subject, payload, cause)
+        envelope = self.envelope(topic, payload, subject=subject, cause=cause)
         with self._lock:
             listeners = list(self._listeners.get(topic, []))
         for listener in listeners:
@@ -223,15 +223,21 @@ class Bus:
         resource, _, action = command.capability.partition(".")
         return self._defaults.lookup(resource, action)
 
-    # ---- 内部 -----------------------------------------------------------
+    # ---- 封套（内核资产，不变量 I8） -------------------------------------
 
-    def _envelope(
+    def envelope(
         self,
         topic: str,
-        subject: Subject,
         payload: dict[str, Any],
-        cause: str | None,
+        *,
+        subject: Subject,
+        cause: str | None = None,
     ) -> EventEnvelope:
+        """构造一个内核封套。
+
+        `seq` 与两种时间戳**由内核给**（不变量 I8）：调用方不自己拼封套，
+        否则定序与补洞会各写各的。
+        """
         # 单调时钟只用于测耗时与进程内定序，不承诺跨进程可比
         ts_mono = monotonic_ns()
         return EventEnvelope(
