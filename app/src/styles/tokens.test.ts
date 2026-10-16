@@ -313,6 +313,46 @@ function docFocusRing(): { width: string; offset: string } {
   return { width, offset };
 }
 
+/** §4.2 的悬停规则：深色端明度 +0.04、浅色端 −0.03（减号是文档里的全角 −）。 */
+function docHoverDeltas(): { dark: number; light: number } {
+  const row = UI_MD.split("\n").find((line) => /^\|\s*hover\s*\|/.test(line));
+  if (!row) {
+    throw new Error("ui.md §4.2 里找不到 hover 那一行");
+  }
+  const deltas = [...row.matchAll(/([+−-])\s?(\d+\.\d+)/g)].map(
+    (match) => Number(match[2]) * (match[1] === "+" ? 1 : -1),
+  );
+  if (deltas.length < 2) {
+    throw new Error(`ui.md §4.2 的 hover 行里读不出两个位移：${row}`);
+  }
+  return { dark: deltas[0], light: deltas[1] };
+}
+
+/** §4.2 的按压方向：跟着**填充上的文字颜色**走。+1 = 变亮，−1 = 变暗。 */
+function docPressDirections(): { dark: number; light: number } {
+  const lines = UI_MD.split("\n");
+  const read = (marker: string): number => {
+    const line = lines.find((candidate) => candidate.includes(marker));
+    if (!line) {
+      throw new Error(`ui.md §4.2 里找不到「${marker}」`);
+    }
+    return line.includes("变亮") ? 1 : -1;
+  };
+  return { dark: read("深色端：填充上是"), light: read("浅色端：填充上是") };
+}
+
+/** 取出 oklch 的三个分量，供「按规则验派生令牌」使用。 */
+function oklchParts(value: string): { l: number; c: number; h: number } {
+  const match = OKLCH_RE.exec(value.trim());
+  if (!match) {
+    throw new Error(`不是 oklch()：${value}`);
+  }
+  return { l: Number(match[1]), c: Number(match[2]), h: Number(match[3]) };
+}
+
+const DOC_HOVER = docHoverDeltas();
+const DOC_PRESS = docPressDirections();
+
 const DOC_DARK = docColorTokens(/^### 2\.3\s/, "§2.3");
 const DOC_LIGHT = docColorTokens(/^### 2\.4\s/, "§2.4");
 const DOC_TRI = docTriStates();
@@ -337,6 +377,13 @@ function withTriStates(
 const DOC_DARK_ALL = withTriStates(DOC_DARK, DOC_TRI.dark);
 const DOC_LIGHT_ALL = withTriStates(DOC_LIGHT, DOC_TRI.light);
 
+/**
+ * 由**规则**派生、而不是由 ui.md 逐个列出的颜色令牌（ui.md §4.2 的悬停/按压方向）。
+ * 它们进集合比对，但值不照抄文档 —— 由下面 `派生令牌必须能从 §4.2 的规则算出来` 一组
+ * 测试按规则验。这样「多出来的颜色」永远有出处。
+ */
+const DERIVED_COLOR_TOKENS = ["--lr-accent-hover", "--lr-accent-active"] as const;
+
 /** 令牌值写错、少写、多写，全在这一处报出来。 */
 function expectTokensMatchDoc(
   block: Declarations,
@@ -346,7 +393,7 @@ function expectTokensMatchDoc(
   expect(
     [...block.keys()].sort(),
     `${label}：tokens.css 与 ui.md 的令牌集合不一致`,
-  ).toEqual([...doc.keys()].sort());
+  ).toEqual([...doc.keys(), ...DERIVED_COLOR_TOKENS].sort());
 
   for (const [name, expected] of doc) {
     const raw = block.get(name) ?? "";
@@ -434,6 +481,65 @@ describe("令牌层与 ui.md 逐格一致", () => {
       expect(CSS_COMMON.get(`--lr-space-${step}`)).toBe(`${step}px`);
     }
   });
+
+  it("正文量度 = ui.md §3.1 表里写的那个 ch", () => {
+    // 从「读面」那一行里读，而不是从散文里捞一个 "58ch" —— 否则测试会自己给自己出题。
+    const row = UI_MD.split("\n").find((line) => line.trim().startsWith("| 读面"));
+    const match = row ? /max-width:\s*(\d+ch)/.exec(row) : null;
+    if (!match) {
+      throw new Error("ui.md §3.1 的「读面」那一行里找不到 max-width: <n>ch");
+    }
+    expect(CSS_COMMON.get("--lr-measure")).toBe(match[1]);
+  });
+});
+
+/**
+ * ui.md §4.2 只给了**规则**（悬停位移 + 按压方向），没给数值。所以令牌是算出来的，
+ * 这里按规则验，而不是拿一个数字去比一个数字。规则改了，或者谁手改了那两个值，都红。
+ */
+describe("派生令牌必须能从 ui.md §4.2 的规则算出来", () => {
+  it("文档里读得到悬停位移与按压方向（读不到就该红，不许静默跳过）", () => {
+    expect(DOC_HOVER.dark).not.toBe(0);
+    expect(DOC_HOVER.light).not.toBe(0);
+    expect(
+      [DOC_PRESS.dark, DOC_PRESS.light].every((value) => Math.abs(value) === 1),
+    ).toBe(true);
+  });
+
+  for (const scheme of ["dark", "light"] as const) {
+    const block = scheme === "dark" ? CSS_DARK : CSS_LIGHT;
+    const colors = scheme === "dark" ? COLORS_DARK : COLORS_LIGHT;
+    const label = scheme === "dark" ? "深色" : "浅色";
+
+    it(`${label}：悬停位移 = 文档写的 ${DOC_HOVER[scheme]}，彩度与色相不动`, () => {
+      const accent = oklchParts(block.get("--lr-accent") ?? "");
+      const hovered = oklchParts(block.get("--lr-accent-hover") ?? "");
+      expect(hovered.l - accent.l).toBeCloseTo(DOC_HOVER[scheme], 5);
+      expect(hovered.c).toBeCloseTo(accent.c, 5);
+      expect(hovered.h).toBeCloseTo(accent.h, 5);
+    });
+
+    it(`${label}：按压比悬停走得更远，且方向与 §4.2 一致`, () => {
+      const accent = oklchParts(block.get("--lr-accent") ?? "");
+      const hovered = oklchParts(block.get("--lr-accent-hover") ?? "");
+      const pressed = oklchParts(block.get("--lr-accent-active") ?? "");
+      expect(
+        Math.sign(pressed.l - accent.l),
+        "方向与 §4.2 的「按压时填充变亮/变暗」不一致",
+      ).toBe(DOC_PRESS[scheme]);
+      expect(Math.abs(pressed.l - accent.l)).toBeGreaterThan(
+        Math.abs(hovered.l - accent.l),
+      );
+    });
+
+    it(`${label}：方向确实跟着填充上的文字颜色走（§4.2 给的理由）`, () => {
+      // 文档说方向由「该填充上的文字颜色」决定：填充上的字偏暗 → 按压变亮，反之变暗。
+      const implied = Math.sign(
+        luminance(colors["--lr-accent"]) - luminance(colors["--lr-on-accent"]),
+      );
+      expect(implied).toBe(DOC_PRESS[scheme]);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

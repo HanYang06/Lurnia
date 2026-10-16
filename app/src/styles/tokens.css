@@ -80,6 +80,13 @@
   --lr-accent-subtle: oklch(0.285 0.04 196);
   --lr-on-accent: #071f1f;
 
+  /* 填充态的悬停/按压（ui.md §4.2）。**这两个不是文档里逐个列出的令牌，是从规则算出来的**：
+     深色端填充上坐的是深色字（--lr-on-accent），所以悬停 +0.04 明度、按压再往同方向走；
+     浅色端填充上坐的是浅色字，方向相反。tokens.test.ts 按 §4.2 的规则验这两个值，
+     不是照抄某个数字 —— 规则改了这里会红。 */
+  --lr-accent-hover: oklch(0.755 0.122 196);
+  --lr-accent-active: oklch(0.795 0.122 196);
+
   /* 语义三态（ui.md §2.5）：淡底 + 饱和字，不是整块高饱和色块。 */
   --lr-allow-fill: #162b1c;
   --lr-allow-ink: #01db71;
@@ -110,6 +117,10 @@
   --lr-accent: oklch(0.525 0.09 196);
   --lr-accent-subtle: oklch(0.945 0.04 196);
   --lr-on-accent: #f6fefd;
+
+  /* 浅色端填充上是浅色字，所以悬停 −0.03、按压再往暗走（ui.md §4.2 的按压方向规则）。 */
+  --lr-accent-hover: oklch(0.495 0.09 196);
+  --lr-accent-active: oklch(0.465 0.09 196);
 
   /* 三态与深色端**逐字相同**（theme.md §3.3）：红/绿/琥珀是语义色，不是品牌色。
      主题包无权改，主题方案更无权改。 */

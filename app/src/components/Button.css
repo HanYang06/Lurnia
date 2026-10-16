@@ -1,0 +1,66 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Button 的六个状态（ui.md §4.2）。**颜色一律走令牌**，一个十六进制都没有。
+ *
+ * 悬停/按压用的是 --lr-accent-hover / --lr-accent-active：那两个值不是文档逐个列的，
+ * 而是按 §4.2 的规则算出来的（方向跟着填充上的文字颜色走），由 tokens.test.ts 按规则验。
+ *
+ * 规则块按**特异度升序**排（base → 变体 → disabled → hover → active）：stylelint 的
+ * no-descending-specificity 盯的就是这个，降序排列会让后来的一条被前面盖住而不自知。
+ */
+
+.lr-button {
+  align-items: center;
+  background: var(--lr-accent);
+  border: 1px solid transparent;
+  border-radius: var(--lr-radius-md);
+  color: var(--lr-on-accent);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 13px;
+  gap: var(--lr-space-8);
+  justify-content: center;
+
+  /* §7.3 第 5 条：最小点击目标 24×24 —— 直接用间距令牌里的 24。 */
+  min-height: var(--lr-space-24);
+  min-width: var(--lr-space-24);
+  padding: var(--lr-space-4) var(--lr-space-12);
+  transition: background-color var(--lr-dur-fast) var(--lr-ease);
+}
+
+.lr-button--quiet {
+  background: transparent;
+  border-color: var(--lr-border-strong);
+  color: var(--lr-text);
+}
+
+/* disabled：**不改颜色**，整体 0.45，光标 not-allowed（§4.2 逐字）。 */
+.lr-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* hover：填充上的字偏暗，所以往亮走（§4.2）。 */
+.lr-button:hover:not(:disabled) {
+  background: var(--lr-accent-hover);
+}
+
+/* active/press：沿远离文字颜色的方向再走一步。 */
+.lr-button:active:not(:disabled) {
+  background: var(--lr-accent-active);
+}
+
+.lr-button--quiet:hover:not(:disabled) {
+  background: var(--lr-surface-raised);
+}
+
+.lr-button--quiet:active:not(:disabled) {
+  background: var(--lr-surface);
+}
+
+/*
+ * select（§4.2 的第六态）用在可选中的条目上，不在 Button 上 —— 见 shell 的
+ * .lr-nav__item 与 .lr-list__item。这里显式说明，免得读代码的人以为漏了。
+ */
