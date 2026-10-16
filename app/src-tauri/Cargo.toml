@@ -1,8 +1,8 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Lurnia 桌面壳：Tauri 宿主 + Python 内核 sidecar"
+authors = ["HanYang06"]
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,6 +20,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+# 宿主拉起自己的 sidecar（packaging.md §三）。它只暴露 Rust API：capabilities
+# 里**不给** shell 权限，所以前端不能自己起进程（不变量 I9）。
+tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

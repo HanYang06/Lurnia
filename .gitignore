@@ -23,6 +23,12 @@ app/dist/
 # (script/build_sidecar.py writes them here for `tauri build` to pick up)
 app/src-tauri/binaries/
 
+# --- Rust (the Tauri host under app/src-tauri/) ---------------------------
+# app/src-tauri/.gitignore 已经忽略 /target/；这条是给**并行/临时**的 target*
+# 目录用的（例如用 CARGO_TARGET_DIR=target-check 另跑一次 cargo check）——
+# 未忽略的未跟踪文件会被 script/check_secrets.py 逐个扫描。
+app/src-tauri/target*/
+
 # --- coverage -------------------------------------------------------------
 .coverage
 .coverage.*
