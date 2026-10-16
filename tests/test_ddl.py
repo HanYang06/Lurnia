@@ -138,7 +138,7 @@ def test_statement_files_are_sorted_by_target_version() -> None:
     files = migration_files(KERNEL_SCHEMA)
     versions = [version for version, _ in files]
     assert versions == sorted(versions)
-    assert versions == [1]
+    assert versions == [1, 2]
 
 
 def test_read_schema_returns_statements_per_version() -> None:
@@ -274,7 +274,42 @@ def test_open_db_migration_is_not_reapplied_on_reopen(tmp_path: Path) -> None:
     open_db(path).close()
     reopened = open_db(path)
     try:
-        assert reopened.current_version(KERNEL_SCHEMA) == 1
+        assert reopened.current_version(KERNEL_SCHEMA) == highest_version(KERNEL_SCHEMA)
+    finally:
+        reopened.close()
+
+
+def test_an_installed_database_from_the_previous_version_still_opens(
+    tmp_path: Path,
+) -> None:
+    """The chain exists for exactly this: an installed database must keep working.
+
+    Simulates a database made before ``attachment`` existed by dropping the table
+    and putting the recorded version back to 1, then opens it again. A fresh
+    install takes the snapshot; *this* database has to walk the chain.
+    """
+    path = tmp_path / "old.db"
+    db = open_db(path)
+    try:
+        with db.transaction() as conn:
+            conn.execute("DROP TABLE attachment")
+            conn.execute(
+                "UPDATE schema_meta SET version = 1 WHERE name = ?", (KERNEL_SCHEMA,)
+            )
+    finally:
+        db.close()
+
+    reopened = open_db(path)
+    try:
+        assert reopened.current_version(KERNEL_SCHEMA) == highest_version(KERNEL_SCHEMA)
+        names = {
+            row["name"]
+            for row in reopened.connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        assert "attachment" in names, "升级路径没有建出新表"
+        assert "event_log" in names, "升级不该动老表"
     finally:
         reopened.close()
 
@@ -324,7 +359,7 @@ def test_bad_ddl_reports_the_failing_statement(
     try:
         db.load_migrations("badddl")
         with pytest.raises(StorageError, match="badddl"):
-            db.migrate("badddl")
+            db.migrate("badddl", target=1)
     finally:
         db.close()
 
@@ -595,10 +630,9 @@ def test_install_snapshot_refuses_an_initialised_database(tmp_path: Path) -> Non
 def test_snapshot_lists_one_file_per_table() -> None:
     """One table per file is the point: readable, searchable, greppable."""
     names = table_files(KERNEL_SCHEMA)
-    assert names == ["event_log.sql"]
+    assert names == ["attachment.sql", "event_log.sql"]
     tables = read_tables(KERNEL_SCHEMA)
-    assert len(tables) == 1
-    assert tables[0][0] == "event_log.sql"
+    assert [name for name, _statements in tables] == names
 
 
 def test_snapshot_file_contains_its_own_create_table() -> None:
@@ -719,7 +753,7 @@ def test_snapshot_statements_are_valid_sql() -> None:
 
 
 def test_highest_version_reads_the_chain() -> None:
-    assert highest_version(KERNEL_SCHEMA) == 1
+    assert highest_version(KERNEL_SCHEMA) == 2
 
 
 def test_schema_without_tables_dir_is_rejected(

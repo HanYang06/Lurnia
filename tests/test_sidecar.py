@@ -110,15 +110,15 @@ def test_self_check_passes_from_source() -> None:
 
 def test_self_check_reports_the_ddl_it_found() -> None:
     _code, payload = _run_sidecar("--self-check")
-    assert payload["ddl_migrations"] == [1]
-    assert payload["ddl_tables"] == ["event_log.sql"]
+    assert payload["ddl_migrations"] == [1, 2]
+    assert payload["ddl_tables"] == ["attachment.sql", "event_log.sql"]
     assert payload["expected_version"] == payload["migrated_to"]
 
 
 def test_self_check_actually_migrates_a_database() -> None:
     """Reading the DDL is not enough; the migration must run."""
     _code, payload = _run_sidecar("--self-check")
-    assert payload["migrated_to"] == 1
+    assert payload["migrated_to"] == 2
 
 
 def test_self_check_fails_when_ddl_is_unreachable(

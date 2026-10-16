@@ -199,15 +199,26 @@ def _create_note_table(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE TABLE note (id TEXT)")
 
 
+def _add_note_title(conn: sqlite3.Connection) -> None:
+    conn.execute("ALTER TABLE note ADD COLUMN title TEXT")
+
+
 def test_i4_migration_reaches_current_version(tmp_path: pathlib.Path) -> None:
-    from lurnia.core.storage import SCHEMA_VERSION, Migration, open_db
+    """A registered chain walks from its lowest version to its current one."""
+    from lurnia.core.storage import Migration, open_db
 
     db = open_db(tmp_path / "t.db")
     try:
         db.register_migration("note", Migration(0, 1, _create_note_table))
+        db.register_migration("note", Migration(1, 2, _add_note_title))
         assert db.current_version("note") == 0
-        assert db.migrate("note") == SCHEMA_VERSION
-        assert db.current_version("note") == SCHEMA_VERSION
+        assert db.migrate("note", target=2) == 2
+        assert db.current_version("note") == 2
+        columns = [
+            row[1]
+            for row in db.connection.execute("PRAGMA table_info(note)").fetchall()
+        ]
+        assert "title" in columns, "每一步迁移都必须真的跑过"
     finally:
         db.close()
 
@@ -222,8 +233,8 @@ def test_i4_migration_is_idempotent(tmp_path: pathlib.Path) -> None:
             "note",
             Migration(0, 1, lambda _conn: calls.append(1)),
         )
-        db.migrate("note")
-        db.migrate("note")
+        db.migrate("note", target=1)
+        db.migrate("note", target=1)
         assert calls == [1]
     finally:
         db.close()
@@ -235,7 +246,7 @@ def test_i4_missing_migration_is_an_error(tmp_path: pathlib.Path) -> None:
     db = open_db(tmp_path / "t.db")
     try:
         with pytest.raises(StorageError, match="缺少"):
-            db.migrate("note")
+            db.migrate("note", target=1)
     finally:
         db.close()
 
@@ -257,7 +268,7 @@ def test_i4_downgrade_is_refused(tmp_path: pathlib.Path) -> None:
     db = open_db(tmp_path / "t.db")
     try:
         db.register_migration("note", Migration(0, 1, lambda _conn: None))
-        db.migrate("note")
+        db.migrate("note", target=1)
         with pytest.raises(StorageError, match="拒绝降级"):
             db.migrate("note", target=0)
     finally:

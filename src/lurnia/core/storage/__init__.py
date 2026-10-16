@@ -4,8 +4,9 @@
 
 不变量 I3：本层只可依赖 config、log 与契约。
 
-口径见 [storage.md §三](../../../docs/design/storage.md)：结构化数据走标准库
-`sqlite3`，大二进制走附件库（不在本模块）。
+口径见 [storage.md §三](../../../docs/design/storage.md)：存储层拆成两个存储 ——
+结构化数据走标准库 `sqlite3`（本模块），大二进制走附件库
+（[attachments.py](attachments.py)，路线 107）。
 
 两条不变量在本层落地：
 
@@ -27,8 +28,16 @@ from pathlib import Path
 from typing import Any
 
 from lurnia.core.ddl import highest_version, read_schema, snapshot_statements
+from lurnia.core.storage.attachments import (
+    BLOB_THRESHOLD,
+    Attachment,
+    AttachmentStore,
+    fits_in_database,
+    suffix_of,
+)
+from lurnia.core.storage.errors import AttachmentError, StorageError
 
-SCHEMA_VERSION = 1  # 内核 schema 当前目标版本；必须等于 DDL 文件里的最大版本
+SCHEMA_VERSION = 2  # 内核 schema 当前目标版本；必须等于 DDL 文件里的最大版本
 PAGE_SIZE = 8192  # storage.md §二：8192 命中 SQLite 官方建议区间
 KERNEL_SCHEMA = "kernel"
 
@@ -41,9 +50,28 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 );
 """
 
-
-class StorageError(Exception):
-    """存储层自身的失败。"""
+# 本层的公共面。附件库的几个名字在这里转出，调用方只认 `lurnia.core.storage`
+# 一个入口。
+__all__ = [
+    "BLOB_THRESHOLD",
+    "KERNEL_SCHEMA",
+    "PAGE_SIZE",
+    "SCHEMA_DDL",
+    "SCHEMA_VERSION",
+    "Attachment",
+    "AttachmentError",
+    "AttachmentStore",
+    "Database",
+    "Migration",
+    "StorageError",
+    "append_event",
+    "check_drift",
+    "fits_in_database",
+    "open_db",
+    "read_events",
+    "schema_drift",
+    "suffix_of",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,8 +159,15 @@ class Database:
         ).fetchone()
         return int(row["version"]) if row else 0
 
-    def migrate(self, name: str, target: int = SCHEMA_VERSION) -> int:
-        """把 `name` 从当前版本逐级迁到 `target`（不变量 I4）。"""
+    def migrate(self, name: str, target: int) -> int:
+        """把 `name` 从当前版本逐级迁到 `target`（不变量 I4）。
+
+        `target` **必须显式给**：迁移链按 schema 分键，两条链各自从 0 起步
+        （[storage.md §三](../../../docs/design/storage.md)），所以不存在一个
+        通用的「当前版本」默认值 —— 拿内核 schema 的版本号当默认，会把别的
+        schema 也往内核的号上拽。要「迁到这个 schema 的当前版本」用
+        :meth:`ensure`，它按 DDL 文件算出目标。
+        """
         chain = self._migrations.get(name, {})
         version = self.current_version(name)
         if version > target:
