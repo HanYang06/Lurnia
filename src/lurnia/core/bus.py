@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from time import monotonic_ns
+from time import monotonic_ns, time_ns
 from typing import Any
 
 from lurnia.core.contracts import (
@@ -238,14 +238,16 @@ class Bus:
         `seq` 与两种时间戳**由内核给**（不变量 I8）：调用方不自己拼封套，
         否则定序与补洞会各写各的。
         """
-        # 单调时钟只用于测耗时与进程内定序，不承诺跨进程可比
+        # 两种时钟各司其职，别混用：ts_wall 给人和审计读，必须来自纪元时钟；
+        # ts_mono 给测耗时与进程内定序，来自单调时钟（不承诺跨进程可比）。
+        # 实测：拿 monotonic_ns() 去换算墙上时间，得到的是 1970。
         ts_mono = monotonic_ns()
         return EventEnvelope(
             topic=topic,
             subject=subject,
             payload=payload,
             seq=self._sequencer.next(),
-            ts_wall=wall_clock(ts_mono),
+            ts_wall=wall_clock(time_ns()),
             ts_mono=ts_mono,
             cause=cause,
         )

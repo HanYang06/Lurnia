@@ -489,6 +489,25 @@ def test_contracts_wall_clock_is_timezone_aware() -> None:
     assert text.endswith("+00:00")
 
 
+def test_bus_envelope_wall_time_is_real_wall_time() -> None:
+    """``ts_wall`` must come from the epoch clock, never from the monotonic one.
+
+    Regression: the envelope used ``wall_clock(monotonic_ns())``. A monotonic
+    clock counts from boot, so the field rendered as 1970 — a timestamp every
+    reader (audit, UI) would misread, while ``ts_mono`` was correct.
+    """
+    from datetime import UTC, datetime
+
+    from lurnia.core.bus import Bus
+    from lurnia.core.contracts import Subject
+
+    envelope = Bus().envelope("t", {}, subject=Subject(id="local"))
+
+    moment = datetime.fromisoformat(envelope.ts_wall)
+    drift = abs((datetime.now(UTC) - moment).total_seconds())
+    assert drift < 60, f"ts_wall 不是墙上时间：{envelope.ts_wall}"
+
+
 def test_contracts_err_kinds_are_closed() -> None:
     from lurnia.core.contracts import ErrKind
 
