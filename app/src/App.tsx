@@ -13,7 +13,9 @@
 
 import { useEffect, useState, type ChangeEvent } from "react";
 
+import { Gallery } from "./panels/Gallery";
 import {
+  EmptyState,
   Select,
   StateBadge,
   Tag,
@@ -66,28 +68,42 @@ const MODULES: readonly NavModule[] = [
 
 const SETTINGS: NavModule = { id: "settings", label: "设置", icon: <SettingsIcon /> };
 
-/** 模块名与它们的空态理由。理由写出来，是为了让「还没做」与「做坏了」能区分开。 */
-const MODULE_COPY: Record<string, { title: string; why: string }> = {
+/**
+ * 模块名与它们的空态文案。三段分开写是有意的：**为什么空**与**将来长出什么**
+ * 是两件事，混成一句就变成了一行灰字 —— 那看起来像是界面坏了。
+ */
+const MODULE_COPY: Record<string, { title: string; why: string; next: string }> = {
   notes: {
     title: "笔记",
-    why: "笔记模块的界面还没做：它要等 doc 能力的读接口（列文档、取正文、取版本链）从内核侧露出来。",
+    why: "这个模块的界面还没接：它要等 doc 能力的读接口（列文档、取正文、取版本链）从内核侧露出来。",
+    next: "接上之后，列表栏会是文档集合，中间的脊柱会是当前文档的版本时间线。",
   },
   projects: {
     title: "项目",
-    why: "项目模块的界面还没做：项目与文档的归属关系还没有调用平面接口。",
+    why: "项目与文档的归属关系还没有调用平面接口。",
+    next: "接上之后，列表栏会是项目集合，检视器会是成员与关联文档。",
   },
   permissions: {
     title: "权限",
-    why: "权限模块的界面还没做。这一块会用到 StateBadge —— 判定结果是三态（allow / deny / uncertain），界面不许把它压成布尔（I2）。",
+    why: "权限判定还没有可以在界面上展示的数据源。",
+    next: "它会用到 StateBadge —— 判定是三态（allow / deny / uncertain），界面不许把它压成布尔（I2）。",
   },
   ai: {
     title: "AI",
-    why: "AI 模块的界面还没做。按 I9，任何对外动作都必须由用户显式发起，所以这里将来也不会有「自动联网」的按钮。",
+    why: "AI 模块还没做。",
+    next: "按 I9，任何对外动作都必须由用户显式发起，所以这里将来也不会出现「自动联网」这类按钮。",
   },
+};
+
+const SETTINGS_COPY = {
+  title: "设置",
+  why: "设置里还没有可改的东西。",
+  next: "主题切换是现在唯一一项，在「外观」里。",
 };
 
 const SETTINGS_ENTRIES: readonly ListEntry[] = [
   { id: "appearance", label: "外观" },
+  { id: "gallery", label: "组件" },
   { id: "events", label: "事件日志" },
   { id: "about", label: "关于" },
 ];
@@ -162,7 +178,7 @@ function App() {
   };
 
   const isSettings = module === "settings";
-  const copy = MODULE_COPY[module] ?? { title: "设置", why: "" };
+  const copy = MODULE_COPY[module] ?? SETTINGS_COPY;
   const entries = isSettings ? SETTINGS_ENTRIES : [];
   const selectedLabel = entries.find((item) => item.id === entry)?.label ?? null;
 
@@ -285,6 +301,10 @@ function App() {
       );
     }
 
+    if (entry === "gallery") {
+      return <Gallery />;
+    }
+
     if (entry === "events") {
       return (
         <div className="stack">
@@ -346,10 +366,9 @@ function App() {
       );
     }
 
+    // 空态是三段：这是什么、为什么空、将来长出什么。一行灰字看起来像界面坏了。
     return (
-      <div className="stack">
-        <p className="note">{copy.why}</p>
-      </div>
+      <EmptyState next={copy.next} title={`${copy.title}还没有内容`} why={copy.why} />
     );
   }
 }

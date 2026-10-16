@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 HanYang06
 // SPDX-License-Identifier: Apache-2.0
 /**
- * 承载类原语：`Card`（面板）、`Skeleton`（占位）、`Meter`（量度）。
+ * 承载类原语：`Card`（面板）、`Skeleton`（占位）、`Meter`（量度）、`EmptyState`（空态）。
  *
- * 三个都是**非交互**的，所以它们没有 §4.2 的六状态 —— 这一点由
+ * 四个都是**非交互**的，所以它们没有 §4.2 的六状态 —— 这一点由
  * `states.test.ts` 显式登记，免得「没写状态」与「不该有状态」被混为一谈。
  */
 
@@ -70,6 +70,29 @@ export function Meter({ value, max, label }: MeterProps) {
         className="lr-meter__fill"
         style={{ width: `${(clamped / safeMax) * 100}%` }}
       />
+    </div>
+  );
+}
+
+export type EmptyStateProps = {
+  /** 一句话说清这里是什么。 */
+  title: string;
+  /** **为什么是空的** —— 这一句决定了界面上「还没做」与「做坏了」能不能分开。 */
+  why: string;
+  /** 将来会从这里长出什么。写出来，空态才不是一个死胡同。 */
+  next?: string;
+};
+
+/**
+ * 空态。它不是装饰：只有一行灰字的空面板看起来**像是坏了**，
+ * 而写清「为什么空、将来会长出什么」的空态是**一句交代**。
+ */
+export function EmptyState({ title, why, next }: EmptyStateProps) {
+  return (
+    <div className="lr-empty">
+      <p className="lr-empty__title">{title}</p>
+      <p className="lr-empty__why">{why}</p>
+      {next && <p className="lr-empty__next">{next}</p>}
     </div>
   );
 }

@@ -44,3 +44,37 @@
   height: 100%;
   transition: width var(--lr-dur-base) var(--lr-ease);
 }
+
+/*
+ * 空态（非交互）。它不是装饰：只有一行灰字的空面板看起来像是坏了。
+ * 层次是「标题 → 为什么空 → 将来长出什么」，三级用三种文字令牌拉开。
+ */
+.lr-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-8);
+  margin: var(--lr-space-40) auto;
+  max-width: 46ch;
+}
+
+.lr-empty__title {
+  color: var(--lr-text);
+  font-size: var(--lr-font-size-read);
+  font-weight: 600;
+  line-height: var(--lr-line-tight);
+  margin: 0;
+}
+
+.lr-empty__why {
+  color: var(--lr-text-muted);
+  font-size: var(--lr-font-size-meta);
+  line-height: var(--lr-line-body);
+  margin: 0;
+}
+
+.lr-empty__next {
+  color: var(--lr-text-faint);
+  font-size: var(--lr-font-size-caption);
+  line-height: var(--lr-line-body);
+  margin: 0;
+}

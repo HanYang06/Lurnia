@@ -58,8 +58,12 @@ describe("没有数据的地方写空态，不写假数据", () => {
     expect(html).toContain("还没有版本记录");
   });
 
-  it("笔记模块的空态讲清楚为什么是空的", () => {
-    expect(html).toContain("笔记模块的界面还没做");
+  it("笔记模块的空态讲清楚「为什么空」与「将来长出什么」", () => {
+    expect(html).toContain("笔记还没有内容");
+    expect(html).toContain("doc 能力的读接口");
+    // 三段式：只有一行灰字的空面板看起来像是界面坏了。
+    expect(html).toContain("lr-empty__why");
+    expect(html).toContain("lr-empty__next");
   });
 
   it("核心没起来时不编造版本号，只说在等", () => {
