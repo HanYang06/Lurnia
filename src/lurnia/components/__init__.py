@@ -43,7 +43,10 @@ def builtin_registry() -> Registry:
             name="note",
             schema=load_schema(NOTE_PACKAGE, NOTE_SCHEMA),
             extract_text=note_type.extract_text,
+            extract_refs=note_type.extract_refs,
             capabilities=note_type.CAPABILITIES,
+            # `note` 还没有格式迁移：1 是第一个版本，第一条迁移等真要改格式时再写
+            migrations={},
         )
     )
     return registry

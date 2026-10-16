@@ -905,16 +905,19 @@ def test_a_component_schema_lives_in_its_own_package() -> None:
     """业务 DDL 归组件包，不进 `core/` —— 加业务表就不会在内核目录留 diff。"""
     from lurnia.core import ddl
 
-    assert ddl.schema_package("doc") == ddl.PACKAGE  # 未注册前按内核包找
+    # 没注册过的名字按内核包找（别拿 "doc" 断言：别的测试会把它注册掉）
+    assert ddl.schema_package("never-registered") == ddl.PACKAGE
     ddl.register_schema("doc", "lurnia.components.doc")
 
     assert ddl.schema_package("doc") == "lurnia.components.doc"
-    assert highest_version("doc") == 1
+    assert highest_version("doc") == 2
     assert [name for name, _ in read_tables("doc")] == [
+        "annotation.sql",
         "doc.sql",
+        "doc_ref_index.sql",
         "doc_revision.sql",
     ]
-    assert [version for version, _ in read_schema("doc")] == [1]
+    assert [version for version, _ in read_schema("doc")] == [1, 2]
 
 
 def test_a_schema_cannot_move_between_packages() -> None:

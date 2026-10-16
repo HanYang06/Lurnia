@@ -22,13 +22,21 @@ from dataclasses import dataclass
 from time import time_ns
 from typing import TYPE_CHECKING, Any
 
+from lurnia.components.doc.anchor import block_texts
+from lurnia.components.doc.annotations import AnnotationStore
 from lurnia.components.doc.model import (
     Compiled,
     DocumentError,
     compile_schema,
     validate,
 )
-from lurnia.components.doc.registry import DocType, Registry, RegistryError
+from lurnia.components.doc.refs import RefIndex
+from lurnia.components.doc.registry import (
+    DocType,
+    Registry,
+    RegistryError,
+    migrate,
+)
 from lurnia.core.contracts import Command, Err, ErrKind, Ok, Reply, wall_clock
 from lurnia.core.ddl import register_schema
 
@@ -59,6 +67,7 @@ class _Body:
     doc_type: str
     version: int
     extract_text: str
+    refs: tuple[tuple[str, str | None], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +82,7 @@ class _Save:
     title: str
     base_revision: int
     commit: bool
+    refs: tuple[tuple[str, str | None], ...]
 
 
 class DocStore:
@@ -89,6 +99,8 @@ class DocStore:
         self._registry = registry
         self._max_body_bytes = max_body_bytes
         self._compiled: dict[str, Compiled] = {}
+        self._refs = RefIndex(core)
+        self._annotations = AnnotationStore(core)
 
     # ---- 装配 -----------------------------------------------------------
 
@@ -110,29 +122,71 @@ class DocStore:
         """注册能力。每条能力恰好一个提供者，重复注册由总线拦下。"""
         self._core.bus.provide(GET_CAPABILITY, self._get)
         self._core.bus.provide(SAVE_CAPABILITY, self._save)
+        self._refs.provide()
+        self._annotations.provide()
 
     # ---- 能力：读 -------------------------------------------------------
 
     def _get(self, command: Command[Any]) -> Reply[Any]:
-        request = command.request
-        if not isinstance(request, Mapping):
-            return Err(ErrKind.INVALID, "doc.get 的 request 必须是对象")
-        doc_id = _identifier(request.get("doc_id"))
-        if doc_id is None:
-            return Err(ErrKind.INVALID, "doc.get 需要非空的 doc_id 字符串")
+        wanted = _read_request(command.request, "doc.get")
+        if isinstance(wanted, Err):
+            return wanted
+        doc_id = wanted
         row = self._core.db.connection.execute(_SELECT, (doc_id,)).fetchone()
         if row is None:
             return Err(ErrKind.NOT_FOUND, f"没有这篇文档：{doc_id}")
-        return Ok(
-            {
-                "doc_id": doc_id,
-                "doc_type": row[0],
-                "title": row[1],
-                "body": json.loads(row[2]),
-                "body_version": row[3],
-                "revision": row[4],
-            }
-        )
+        decoded = _decode_row(row)
+        if isinstance(decoded, Err):
+            return decoded
+        doc_type, title, stored, revision = decoded
+        upgraded = self._upgrade(doc_type, stored)
+        if isinstance(upgraded, Err):
+            return upgraded
+        body, migrated_from = upgraded
+        reply: dict[str, Any] = {
+            "doc_id": doc_id,
+            "doc_type": doc_type,
+            "title": title,
+            "body": body,
+            "body_version": self._registry.get(doc_type).version,
+            "revision": revision,
+        }
+        if migrated_from is not None:
+            # 迁移是**读时**发生的：库里还是老格式，下次保存才写回当前版本（§4.4）
+            reply["migrated_from"] = migrated_from
+        return Ok(reply)
+
+    def _upgrade(self, doc_type: str, body: Any) -> tuple[Any, int | None] | Err:
+        """读到的老文档先迁到当前版本。`None` 表示本来就是当前版本。"""
+        try:
+            registered = self._registry.get(doc_type)
+        except RegistryError as exc:
+            return Err(ErrKind.INVALID, str(exc))
+        if not isinstance(body, Mapping):
+            return Err(ErrKind.INVALID, f"库里的 {doc_type!r} 正文不是对象")
+        upgraded = _run_migrations(registered, body)
+        if isinstance(upgraded, Err):
+            return upgraded
+        migrated, from_version = upgraded
+        if from_version == registered.version:
+            return migrated, None
+        return self._accept_migrated(registered, migrated, from_version)
+
+    def _accept_migrated(
+        self, registered: DocType, migrated: Any, from_version: int
+    ) -> tuple[Any, int] | Err:
+        """迁移函数的产物也要过一遍校验：写歪了当场报，不把坏正文交给前端。"""
+        compiled = self._compiled.get(registered.name)
+        if compiled is None:
+            return Err(ErrKind.UNAVAILABLE, f"文档类型 {registered.name!r} 没有准备好")
+        try:
+            validate(compiled, migrated)
+        except DocumentError as exc:
+            return Err(
+                ErrKind.INVALID,
+                f"{from_version} → {registered.version} 迁移后的正文不合法：{exc}",
+            )
+        return migrated, from_version
 
     # ---- 能力：写 -------------------------------------------------------
 
@@ -203,6 +257,10 @@ class DocStore:
                     " created_wall, cause) VALUES (?, ?, ?, ?, ?)",
                     (parsed.doc_id, revision, parsed.text, now, command.id),
                 )
+            # 派生数据在**同一个事务**里跟着走（§六 第 4、5 步）：
+            # 引用集变了才写索引；批注则要重新对一遍锚点（正文刚变过）
+            self._refs.replace(tx, parsed.doc_id, parsed.refs)
+            self._annotations.reanchor(tx, parsed.doc_id, block_texts(parsed.body))
         return Ok(
             {"doc_id": parsed.doc_id, "revision": revision, "commit": parsed.commit}
         )
@@ -234,6 +292,7 @@ class DocStore:
             title=self._title(request, parsed.extract_text),
             base_revision=base_revision,
             commit=commit,
+            refs=parsed.refs,
         )
 
     def _read_body(self, raw: Any) -> _Body | Err:
@@ -263,6 +322,7 @@ class DocStore:
             doc_type=registered.name,
             version=int(body["version"]),
             extract_text=registered.extract_text(body),
+            refs=tuple(registered.extract_refs(body)),
         )
 
     def _registered_type(self, body: Any) -> DocType | Err:
@@ -293,6 +353,38 @@ class DocStore:
 
 def _identifier(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
+
+
+def _read_request(request: Any, capability: str) -> str | Err:
+    """所有按 `doc_id` 寻址的能力共用：request 是对象、doc_id 是非空字符串。"""
+    if not isinstance(request, Mapping):
+        return Err(ErrKind.INVALID, f"{capability} 的 request 必须是对象")
+    doc_id = _identifier(request.get("doc_id"))
+    if doc_id is None:
+        return Err(ErrKind.INVALID, f"{capability} 需要非空的 doc_id 字符串")
+    return doc_id
+
+
+def _decode_row(row: Any) -> tuple[str, str, Any, int] | Err:
+    """把库里那一行解成 `(doc_type, title, 正文对象, revision)`。
+
+    存进去的正文本该是校验过的；真坏了要显式报错，不能让内核崩在这里。
+    """
+    try:
+        stored = json.loads(row[2])
+    except json.JSONDecodeError as exc:
+        return Err(ErrKind.INVALID, f"库里的 {row[0]!r} 正文不是合法 JSON：{exc}")
+    return str(row[0]), str(row[1]), stored, int(row[4])
+
+
+def _run_migrations(doc_type: DocType, body: Any) -> tuple[Any, int] | Err:
+    """迁移链跑一遍，把两种失败翻成 `Err`（数据问题 vs 装配问题）。"""
+    try:
+        return migrate(doc_type, body)
+    except DocumentError as exc:
+        return Err(ErrKind.INVALID, str(exc))
+    except RegistryError as exc:
+        return Err(ErrKind.UNAVAILABLE, str(exc))
 
 
 def _decode(raw: Any) -> tuple[str, Any] | Err:

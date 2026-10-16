@@ -24,6 +24,30 @@ def extract_text(body: Mapping[str, Any]) -> str:
     return " ".join(chunks).strip()
 
 
+def extract_refs(body: Mapping[str, Any]) -> list[tuple[str, str | None]]:
+    """文档里的引用集：`(目标文档 id, 来源块 id)`，给反链索引（§十、§3.2 第 3 条）。"""
+    out: list[tuple[str, str | None]] = []
+    _refs(body.get("content"), out)
+    return out
+
+
+def _refs(node: Any, out: list[tuple[str, str | None]]) -> None:
+    if isinstance(node, list):
+        for item in node:
+            _refs(item, out)
+        return
+    if not isinstance(node, Mapping):
+        return
+    if node.get("type") == "doc_ref":
+        attrs = node.get("attrs")
+        target = attrs.get("doc_id") if isinstance(attrs, Mapping) else None
+        if isinstance(target, str) and target:
+            block_id = node.get("id")
+            out.append((target, block_id if isinstance(block_id, str) else None))
+        return
+    _refs(node.get("content"), out)
+
+
 def _collect(node: Any, out: list[str]) -> None:
     if isinstance(node, list):
         for item in node:
@@ -39,4 +63,4 @@ def _collect(node: Any, out: list[str]) -> None:
     _collect(node.get("content"), out)
 
 
-__all__ = ["CAPABILITIES", "extract_text"]
+__all__ = ["CAPABILITIES", "extract_refs", "extract_text"]

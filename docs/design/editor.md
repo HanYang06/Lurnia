@@ -431,6 +431,9 @@ core.change("doc.saved", …)  →
 - **悬空引用**（目标已删或不存在）显式呈现为「悬空引用」，可从检视器跳转或修复；
   不静默消失、不降级成普通文本。
 - **循环嵌入**（A 嵌 B、B 嵌 A）渲染深度上限 2，超出显示「已折叠：循环引用」。
+- **已落（2026-10-17）**：`doc_ref_index` 表 + `doc.refs.backlinks` / `doc.refs.outgoing`
+  两个能力；索引只在**引用集变化**时重写（`RefIndex.replace` 会告诉你变没变）；
+  来源文档已删的行不出现在反链里，悬空目标由 `outgoing` 的 `exists: false` 显式给出。
 
 ## 十一、批注（r112）
 
@@ -445,6 +448,10 @@ core.change("doc.saved", …)  →
 - 因为它在文档外：**不经撤销回退**（撤销一次编辑不会撤销一条批注）、
   **不随文档复制而复制**、**可跨多个修订存活**。
 - 作者来自 `Subject`（不变量 I6），界面不自行造身份概念（ui.md §九）。
+- **已落（2026-10-17）**：`annotation` 表 + `list` / `create` / `update` / `resolve`；
+  锚点在**保存事务内**对一遍（`resolved` 的跳过），顺序是快路径 → 慢路径 → 前后文消歧 →
+  `orphaned`；`orphaned` **保留原偏移**，正文改回来它能自己恢复。
+  **删除批注没有单独能力**：删除是界面上的真删行，随 109 一起落（§十一 的「没有 deleted」说的是状态机）。
 
 ## 十二、高亮（r113）
 
@@ -525,14 +532,15 @@ core.change("doc.saved", …)  →
   专门拦这件事的测试，放进去当场红。
   `script/audit.py` 的 `schema_drift_violations()` **已改成扫两处根**（内核 + 组件），
   否则新根下的 schema 会丢掉 I4 的「快照 vs 迁移链」防线。
-- 表（**切片 0 只落了前两张**，后三张随各自条目落地）：
+- 表（`doc` / `doc_revision` 是切片 0，`annotation` / `doc_ref_index` 随 111、112 落地，
+  schema `doc` 现在是 **v2**；`doc_fts` 见下）：
 
 | 表 | 装什么 | 状态 |
 | --- | --- | --- |
 | `doc` | `id` / `doc_type`（`note`、将来的画布等）/ `title` / `body`（§4 的 JSON）/ `body_version` / `revision` / 时间戳 | **已落** |
 | `doc_revision` | 历史快照：`doc_id` / `revision` / `body` / `created_wall` / `cause` | **已落** |
-| `doc_ref_index` | 引用与反链（§十；按 `doc_id` 寻址，所以跨类型可用） | 随 111 |
-| `annotation` | 批注（§十一；锚定在 `doc_id` + §五 的锚点上） | 随 112 |
+| `doc_ref_index` | 引用与反链（§十；按 `doc_id` 寻址，所以跨类型可用） | **已落** |
+| `annotation` | 批注（§十一；锚定在 `doc_id` + §五 的锚点上） | **已落** |
 | `doc_fts` | FTS5 全文索引（`title` + 类型抽取器给出的纯文本） | **不做**，见下 |
 
 **只有 `doc_type` 与 `title` 是列**：前者是判别式，后者是唯一真正通用的字段（要排序、要列表）。
@@ -554,14 +562,15 @@ core.change("doc.saved", …)  →
 - **谁执行**：组件启动时 `db.ensure("doc")` —— `open_db` 已按 schema 分键
   （`schema_meta` 记名），两条链各自从 0 起步。
 - **能力**（每条恰好一个提供者，bus.md §三；名字里**没有"笔记"**，所以画布与设计器也能用。
-  `doc.get` / `doc.save` 已落，其余随各自条目）：
+  全部已落）：
 
 | 能力 | 请求 → 回复 | 状态 |
 | --- | --- | --- |
 | `doc.get` | `{doc_id}` → `{doc_type, title, body, body_version, revision}` | **已落** |
 | `doc.save` | `{doc_id, body: <JSON 文本>, base_revision, commit, title?}` → `{revision}`／`Err(CONFLICT)` | **已落** |
-| `doc.annotation.list` / `create` / `update` / `resolve` | 批注的增改查（§十一） | 随 112 |
-| `doc.refs.backlinks` | `{doc_id}` → `[{source_doc_id, source_block_id}]`（§十） | 随 111 |
+| `doc.annotation.list` / `create` / `update` / `resolve` | 批注的增改查（§十一） | **已落** |
+| `doc.refs.backlinks` | `{doc_id}` → `[{source_doc_id, source_block_id, source_doc_type, title}]`（§十） | **已落** |
+| `doc.refs.outgoing` | `{doc_id}` → `[{target_doc_id, source_block_id, exists, title}]`（悬空引用显式呈现，§十） | **已落** |
 
   两条写入语义已在实现里钉住：**`commit` 缺省为假**（自动落盘只更新当前行，
   `revision` 不动），**`commit: true` 才 +1 并写一条 `doc_revision`**（§六 两档写入，
@@ -627,7 +636,7 @@ core.change("doc.saved", …)  →
 | 0 · 通道 | 115 协议 v2 + 114 的最小形状 + 前端 `callKernel()` | **空文档能存能取**（打通三层边界）✅ **2026-10-17 已落**：类型注册 + 单遍校验 + `doc.get`/`doc.save`（含两档写入与 `CONFLICT`）+ 协议 v2；FTS 未做（见 §十七） |
 | 1 · 模型与编辑面 | 108 文档模型与校验／迁移 + 109 编辑面 + 030/031/032 最小形状 | 能写、能存、能重开 |
 | 2 · 修订 | 033 撤销重做 + 034 查找替换 + 提交点节流 | 编辑体验闭环 |
-| 3 · 引用、标注与表格 | 029 + 110 + 111 + 112 + 113 + 116 | 你提的两组需求 + 表格全部到位 |
+| 3 · 引用、标注与表格 | 029 + 110 + 111 + 112 + 113 + 116 | 你提的两组需求 + 表格全部到位。**后端已落**（2026-10-17）：111 的引用索引与反链、112 的锚点与批注；表格与高亮在 schema 层已随校验器生效；界面部分随 109 |
 
 > **与 [README.md](README.md) §四 的关系**：那里写的是「内核最好做、先做」，
 > 讲的是**难度排序**，不是禁止从组件层开始。编辑器先行的决定来自项目所有者，
@@ -702,7 +711,8 @@ core.change("doc.saved", …)  →
 
 1. 提交节流窗口的确切值（暂定 3s 空闲）。
 2. 撤销的输入合并窗口（暂定 500ms）。
-3. `quote` 的空白归一化与长度上限（暂定折叠空白 + 128 字符）。
+3. `quote` 的**空白归一化**：现在是**逐字精确匹配**，没做折叠（`QUOTE_LIMIT = 128` 已实现）。
+   要不要折叠空白（以及折叠后 offset 怎么算）得先看真实手感，别拍脑袋。
 4. 高亮底色的对比度实算（§4.6，未验不得落地）。
 5. 导入映射报告的形态（对话框 / 事件 / 检视器）。
 6. **中文全文检索的分词口径**（FTS 上线前必须裁）：`tokenize='trigram'` 加两字词回退，
