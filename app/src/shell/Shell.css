@@ -57,13 +57,24 @@
   width: 232px;
 }
 
+/* 检视器的图标条：只在窄窗口出现，见文件末尾的媒体查询。 */
+.lr-rail {
+  display: none;
+}
+
 /* 两个折叠开关（§3.1：列表栏与检视器可折叠，检视器默认展开）。 */
 .lr-shell[data-list="closed"] .lr-shell__list {
   display: none;
 }
 
-.lr-shell[data-inspector="closed"] .lr-shell__inspector {
-  display: none;
+/*
+ * 宽窗口：收起 = 整栏不出现。**这条必须限定在宽窗口**，否则窄窗口下它会把
+ * 图标条一起藏掉 —— 窄窗口收起的是浮层，图标条一直在（§3.3）。
+ */
+@media (width >= 1180px) {
+  .lr-shell[data-inspector="closed"] .lr-shell__inspector {
+    display: none;
+  }
 }
 
 /* ---------------------------------------------------------------- 导航条 */
@@ -393,20 +404,66 @@
   gap: var(--lr-space-4);
 }
 
+/*
+ * 状态条上的两个开关：去掉边框与底色，它们是一个开关，而不是两个盒子。
+ * 尺寸仍不小于 24×24（§7.3 第 5 条），只是不再长得像按钮。
+ */
+.lr-statusbar__chrome .lr-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--lr-text-faint);
+  font-size: var(--lr-font-size-caption);
+  padding: 0 var(--lr-space-8);
+}
+
+.lr-statusbar__chrome .lr-button:hover:not(:disabled) {
+  background: var(--lr-surface-raised);
+  color: var(--lr-text);
+}
+
+.lr-statusbar__chrome .lr-button[aria-pressed="true"] {
+  color: var(--lr-accent);
+}
+
 /* ---------------------------------------- 收窄（§3.3）：先检视器，再列表，最后读面 */
 
-/* 1000–1179px：检视器折叠为右侧浮层。 */
+/* 1000–1179px：检视器折叠为 40px 图标条，展开时是浮层。 */
 @media (width < 1180px) {
+  /*
+   * 1000–1179px：检视器折叠为 **40px 图标条**，展开时是浮层（ui.md §3.3）。
+   *
+   * 这里曾经写错一次，值得留一句：原来是「data-inspector 是 open 就浮层展开」，
+   * 而 open 的默认值是真 —— 于是窄窗口下浮层**默认盖住读面正文**，
+   * 把「用户可以展开」实现成了「默认展开」。现在展开与否由 JS 按宽度决定：
+   * 宽窗口默认展开、窄窗口默认只留图标条。
+   */
   .lr-shell__inspector {
+    width: 40px;
+  }
+
+  .lr-rail {
+    align-items: flex-start;
+    background: var(--lr-surface);
+    border-left: 1px solid var(--lr-border);
+    display: flex;
+    height: 100%;
+    justify-content: center;
+    padding-top: var(--lr-space-16);
+  }
+
+  .lr-inspector {
     display: none;
   }
 
-  .lr-shell[data-inspector="open"] .lr-shell__inspector {
+  .lr-shell[data-inspector="open"] .lr-inspector {
+    background: var(--lr-surface);
+    border-left: 1px solid var(--lr-border);
     bottom: 28px;
-    display: block;
+    display: flex;
     position: fixed;
-    right: 0;
+    right: 40px;
     top: 0;
+    width: 232px;
     z-index: 3;
   }
 }

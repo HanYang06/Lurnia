@@ -85,3 +85,13 @@ export function BackIcon() {
     </Glyph>
   );
 }
+
+/** 检视器：右侧栏的轮廓。窄窗口下它就是那条图标条上的按钮。 */
+export function PanelIcon() {
+  return (
+    <Glyph>
+      <rect height="12" rx="1.5" width="12" x="2" y="2" />
+      <path d="M10 2v12" />
+    </Glyph>
+  );
+}

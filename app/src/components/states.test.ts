@@ -219,3 +219,22 @@ describe("ui.md §4.5：字号与行距只能走令牌", () => {
     });
   }
 });
+
+describe("窄窗口的检视器：JS 的断点必须与 CSS 逐字一致", () => {
+  it("INSPECTOR_COLLAPSE_QUERY 原样出现在 Shell.css 的媒体查询里", async () => {
+    // 对不上就会出现「CSS 认为还宽着、JS 认为已经窄了」的一帧：
+    // 一边把它当栏位、一边当浮层。所以这个字符串只允许有一个来源被核对。
+    const { INSPECTOR_COLLAPSE_QUERY } = await import("../shell/Shell");
+    expect(readCss("shell/Shell.css")).toContain(`@media ${INSPECTOR_COLLAPSE_QUERY}`);
+  });
+
+  it("窄窗口下检视器**默认折叠**：先只留图标条，展开才变浮层", () => {
+    // 这一条是修过的缺陷：原来是「data-inspector=open 就浮层展开」，而 open 默认是真，
+    // 于是浮层默认盖住读面正文 —— 把「用户可以展开」实现成了「默认展开」。
+    const css = readCss("shell/Shell.css");
+    const narrow = css.slice(css.indexOf("@media (width < 1180px)"));
+    expect(narrow).toMatch(/\.lr-rail\s*\{[^}]*display:\s*flex/);
+    expect(narrow).toMatch(/\.lr-inspector\s*\{[^}]*display:\s*none/);
+    expect(narrow).toMatch(/data-inspector="open"\]\s+\.lr-inspector\s*\{/);
+  });
+});

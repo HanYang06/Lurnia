@@ -22,7 +22,10 @@ export {
   AiIcon,
   BackIcon,
   NoteIcon,
+  PanelIcon,
   PermissionIcon,
   ProjectIcon,
   SettingsIcon,
 } from "./icons";
+
+export { useMediaQuery } from "./useMediaQuery";

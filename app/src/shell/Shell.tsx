@@ -20,10 +20,12 @@
  * 不一致」的那一帧。
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Button } from "../components";
+import { PanelIcon } from "./icons";
 import "./Shell.css";
+import { useMediaQuery } from "./useMediaQuery";
 
 export type NavModule = {
   id: string;
@@ -186,6 +188,13 @@ export function ReadPane({
   );
 }
 
+/**
+ * 检视器折叠的断点。**必须与 Shell.css 里的媒体查询逐字一致**：对不上就会出现
+ * 「CSS 认为还宽着、JS 认为已经窄了」的一帧 —— 一边把检视器当栏位、一边当浮层。
+ * `states.test.ts` 会核对这个字符串确实出现在样式表里。
+ */
+export const INSPECTOR_COLLAPSE_QUERY = "(width < 1180px)";
+
 /** App 持有的界面状态：两个折叠开关 + 窄窗口下的前后台。 */
 export type ShellLayout = {
   listOpen: boolean;
@@ -223,10 +232,24 @@ export function Shell({
   onToggleList,
   onToggleInspector,
 }: ShellProps) {
+  // 窄窗口下检视器退化成图标条：**展开与否只由用户点击决定**（默认折叠）。
+  // 宽窗口沿用 App 给的偏好（默认展开）。这一条以前写反过 —— 见 Shell.css 里的注。
+  const narrow = useMediaQuery(INSPECTOR_COLLAPSE_QUERY);
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const inspectorShown = narrow ? overlayOpen : layout.inspectorOpen;
+
+  const toggleInspector = () => {
+    if (narrow) {
+      setOverlayOpen((open) => !open);
+    } else {
+      onToggleInspector();
+    }
+  };
+
   return (
     <div
       className="lr-shell"
-      data-inspector={layout.inspectorOpen ? "open" : "closed"}
+      data-inspector={inspectorShown ? "open" : "closed"}
       data-list={layout.listOpen ? "open" : "closed"}
       data-pane={layout.pane}
     >
@@ -234,7 +257,15 @@ export function Shell({
       <div className="lr-shell__list">{list}</div>
       <div className="lr-shell__spine">{spine}</div>
       <div className="lr-shell__read">{read}</div>
-      <div className="lr-shell__inspector">{inspector}</div>
+      <div className="lr-shell__inspector">
+        {/* 图标条：只在窄窗口出现（Shell.css 的 <1180 媒体查询）。 */}
+        <div className="lr-rail">
+          <Button aria-label="检视器" onClick={toggleInspector} variant="quiet">
+            <PanelIcon />
+          </Button>
+        </div>
+        {inspector}
+      </div>
       <footer className="lr-statusbar">
         <div className="lr-statusbar__slot">{status}</div>
         <div className="lr-statusbar__chrome">
@@ -242,8 +273,8 @@ export function Shell({
             列表
           </Button>
           <Button
-            aria-pressed={layout.inspectorOpen}
-            onClick={onToggleInspector}
+            aria-pressed={inspectorShown}
+            onClick={toggleInspector}
             variant="quiet"
           >
             检视器
