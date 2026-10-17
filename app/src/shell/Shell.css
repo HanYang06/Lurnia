@@ -1,18 +1,19 @@
 /* SPDX-FileCopyrightText: 2026 HanYang06 */
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * 四区布局与收窄行为（ui.md §3.1 / §3.3）。
+ * 五区布局与收窄行为（ui.md §3.1 / §3.3）。
  *
  * 两条设计口径直接落在这里：
  *
- * 1. **层级靠明度不靠投影**（§2.3）：导航条 / 列表栏 / 检视器用 --lr-surface，
+ * 1. **层级靠明度不靠投影**（§2.3）：导航条 / 列表栏用 --lr-surface，
  *    读面用窗口底 --lr-bg，卡片再抬到 --lr-surface-raised。深色底上的阴影几乎看不见，
  *    用投影做层级是无效的。
- * 2. **收窄顺序：先收检视器，再收列表栏，最后才动读面**（§3.3）。正文优先级最高，
- *    所以三个断点是 1180 / 1000 / 820，全部由 CSS 媒体查询表达，不经过 React。
+ * 2. **收窄顺序：先收列表栏，最后才动读面**（§3.3）。正文优先级最高，
+ *    所以断点是 1000 / 820，全部由 CSS 媒体查询表达，不经过 React。
+ *    （原来的 1180 那条是给右侧栏的 —— 右侧栏已撤，见 §3.1 本轮批注 2。）
  *
- * 裸数字只有 ui.md §3.1 逐字写出的那三个宽度（72 / 242 / 88 / 232 / 28）与 §4.2 的
- * 2.5px 选中条，其余一律走令牌。
+ * 裸数字只有 ui.md §3.1 逐字写出的那几个宽度（48 / 56 / 242 / 58ch / 28）与
+ * §4.2 的选中规则，其余一律走令牌。
  */
 
 .lr-shell {
@@ -21,17 +22,18 @@
   display: grid;
   font-size: var(--lr-font-size-body);
 
-  /* 左栏**顶天立地**（批注 6）：它跨第 2、3 两行，状态条从它右边起。 */
+  /* 左栏**顶天立地**：它跨第 2、3 两行，状态条从它右边起。 */
   grid-template-areas:
-    "top top top top"
-    "nav list read inspector"
-    "nav status status status";
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+    "top top top"
+    "nav list read"
+    "nav status status";
+  grid-template-columns: auto auto minmax(0, 1fr);
 
   /* 顶栏 48 / 内容弹性 / 状态条 28（§3.1）。 */
   grid-template-rows: 48px minmax(0, 1fr) 28px;
   height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
 /* 顶栏槽位与它自己（§3.1 2026-10-17 新增）。 */
@@ -50,13 +52,36 @@
   padding: 0 var(--lr-space-12);
 }
 
-/* 搜索居中：它是这个界面的第一动作，不是模块切换的附属。 */
+/*
+ * 搜索居中：它是这个界面的第一动作，不是模块切换的附属。
+ * 左右两列都是 1fr，所以右列里怎么挪都不会把搜索框带偏。
+ */
 .lr-topbar__search {
   grid-column: 2;
   width: 46ch;
 }
 
+/*
+ * 品牌位（第三轮）：左端是「图形 + Lurnia」的锁定组合。系统标题栏撤掉之后，
+ * 顶栏左端就是窗口的身份位，所以它同时是拖窗口的把手（`data-tauri-drag-region`）。
+ */
+.lr-topbar__brand {
+  align-items: center;
+  display: flex;
+  grid-column: 1;
+  justify-self: start;
+  min-width: 0;
+}
+
+/*
+ * 动作区（第三轮）：账户位与窗口控制（最小化 / 最大化 / 关闭）**收在同一个格子**里。
+ * 原先给「以后要加的按钮」留的那两个位子撤了 —— 那块地方现在归窗口控制，
+ * 再加按钮就往这一格里排，不需要预先空着。
+ */
 .lr-topbar__action {
+  align-items: center;
+  display: flex;
+  gap: var(--lr-space-8);
   grid-column: 3;
   justify-self: end;
 }
@@ -68,7 +93,7 @@
   padding: 0 var(--lr-space-12);
 }
 
-/* 栏位预算：导航条 56 / 列表栏 242 / 检视器 232（§3.1 2026-10-17 收窄导航条）。 */
+/* 栏位预算：导航条 56 / 列表栏 242（§3.1 2026-10-17 收窄导航条）。 */
 .lr-shell__nav {
   grid-area: nav;
   width: 56px;
@@ -82,31 +107,47 @@
 .lr-shell__read {
   grid-area: read;
   min-width: 0;
+
+  /* 收起列表后浮出的那颗展开钮要**贴着正文那一列的左上角**，所以定位上下文放在这：
+     放在 .lr-shell 上会飘到导航条上面去（实测截图就是这么发现的）。 */
+  position: relative;
 }
 
-.lr-shell__inspector {
-  grid-area: inspector;
-  width: 232px;
-}
-
-/* 检视器的图标条：只在窄窗口出现，见文件末尾的媒体查询。 */
-.lr-rail {
-  display: none;
-}
-
-/* 两个折叠开关（§3.1：列表栏与检视器可折叠，检视器默认展开）。 */
+/*
+ * 列表栏折叠：**整列消失，不留窄列**（第四轮）。留一列 32px 等于「为一个按钮多出一列」，
+ * 屏幕上很难看。回头路由正文左上角那颗浮出的小箭头、当前模块图标、`Ctrl+B` 三条给。
+ */
 .lr-shell[data-list="closed"] .lr-shell__list {
   display: none;
 }
 
 /*
- * 宽窗口：收起 = 整栏不出现。**这条必须限定在宽窗口**，否则窄窗口下它会把
- * 图标条一起藏掉 —— 窄窗口收起的是浮层，图标条一直在（§3.3）。
+ * 收起之后浮出的展开钮：**不占版心宽度**，只是贴在正文左上角的一小颗。
+ * 位置的 12px 是「读面自己那份 padding 的左上角」，不压正文第一行。
  */
-@media (width >= 1180px) {
-  .lr-shell[data-inspector="closed"] .lr-shell__inspector {
-    display: none;
-  }
+.lr-shell__expand {
+  align-items: center;
+  background: var(--lr-surface);
+  border: 1px solid var(--lr-border);
+  border-radius: var(--lr-radius-sm);
+
+  /* 它漂在正文之上（不含在布局里），所以给它行级投影，别让它在白纸上看不见。 */
+  box-shadow: var(--lr-shadow-1);
+  color: var(--lr-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: var(--lr-space-24);
+  inset-block-start: var(--lr-space-8);
+  inset-inline-start: var(--lr-space-8);
+  justify-content: center;
+  position: absolute;
+  width: var(--lr-space-24);
+  z-index: 4;
+}
+
+.lr-shell__expand:hover {
+  background: var(--lr-surface-raised);
+  color: var(--lr-text);
 }
 
 /* ---------------------------------------------------------------- 导航条 */
@@ -134,11 +175,13 @@
   flex: 1;
 }
 
-/* 设置是「关于这套工具」，不是第五个模块 —— 用一条线把它和模块分开。 */
+/*
+ * 设置固定在底部：它是「关于这套工具」，不是某个模块（§3.1）。
+ * **它上面那条分隔线撤了**（本轮批注 4）：一条横线既不是它要表达的信息，也把本来
+ * 靠留白分好的两段又框了一遍 —— 底部的留白已经说明它是另一组。
+ */
 .lr-nav__foot {
-  border-block-start: 1px solid var(--lr-border);
   margin-block-start: var(--lr-space-8);
-  padding-block-start: var(--lr-space-8);
 }
 
 .lr-nav__item {
@@ -164,22 +207,132 @@
 
 /* 选中态：底抬一级 + 文字变强调色，另加 aria-current 供读屏（§4.2 第六态）。 */
 .lr-nav__item[aria-current="page"] {
-  background: var(--lr-surface-raised);
+  background: var(--lr-accent-subtle);
   color: var(--lr-accent);
 }
 
-.lr-nav__item:hover:not(:disabled) {
+.lr-nav__item:hover:not(:disabled, [aria-current="page"]) {
   background: var(--lr-surface-raised);
   color: var(--lr-text);
 }
 
-.lr-nav__item:active:not(:disabled) {
+.lr-nav__item:active:not(:disabled, [aria-current="page"]) {
   background: var(--lr-surface);
 }
 
 .lr-nav__icon {
   display: block;
   line-height: 0;
+}
+
+/*
+ * 工具 / 属性这两颗钮在**顶栏右端**（第四轮从导航条挪过来的）：它们是「对当前这份
+ * 文档」的动作，和账户位、窗口控制是同一层。宿主相对定位，面板按 100% 往下展。
+ */
+.lr-topbar__panel-host {
+  display: inline-flex;
+  position: relative;
+}
+
+/* 与账户位同为 32×32 的圆形方钮，只是没有边框 —— 它俩是「工具栏」，不是头像。 */
+.lr-topbar__panel-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--lr-radius-sm);
+  color: var(--lr-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: var(--lr-space-32);
+  justify-content: center;
+  width: var(--lr-space-32);
+}
+
+.lr-topbar__panel-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lr-topbar__panel-button:hover:not(:disabled) {
+  background: var(--lr-surface-raised);
+  color: var(--lr-text);
+}
+
+.lr-topbar__panel-button:active:not(:disabled) {
+  background: var(--lr-surface);
+}
+
+/*
+ * 上层浮层（工具 / 属性）。它是**浮在内容上**的一块，不占栏位 ——
+ * 所以它不是「又一列」，关掉就什么都不剩。
+ */
+.lr-panel {
+  background: var(--lr-surface-raised);
+
+  /* 浮层是**物体**，两条通道一起用（§4.6）：边界在深色端给出边缘（那里投影不可见），
+     投影在浅色端给出「浮在内容之上」。这两件事不重复。 */
+  border: 1px solid var(--lr-border-strong);
+  border-radius: var(--lr-radius-lg);
+  box-shadow: var(--lr-shadow-3);
+
+  /* 从按钮下面展开、与按钮右缘对齐 —— 顶栏在最上面，所以只能往下开。 */
+  inset-block-start: calc(100% + var(--lr-space-4));
+  inset-inline-end: 0;
+  min-width: 232px;
+  padding: var(--lr-space-16);
+  position: absolute;
+  z-index: 6;
+}
+
+/* 浮层里的动作排成一列、间距 4 —— 它们是同级的动作，不是一个列表。 */
+.lr-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-4);
+}
+
+.lr-panel__title {
+  color: var(--lr-text-faint);
+  font-size: var(--lr-font-size-caption);
+  margin: 0 0 var(--lr-space-8);
+  padding-inline-start: var(--lr-space-8);
+}
+
+.lr-panel__action {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--lr-radius-md);
+  color: var(--lr-text);
+  cursor: pointer;
+  display: flex;
+  font-family: inherit;
+  font-size: var(--lr-font-size-meta);
+  gap: var(--lr-space-8);
+  justify-content: space-between;
+  padding: var(--lr-space-8);
+  text-align: start;
+  width: 100%;
+}
+
+.lr-panel__action:disabled {
+  color: var(--lr-text-faint);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lr-panel__action:hover:not(:disabled) {
+  background: var(--lr-surface);
+}
+
+.lr-panel__action:active:not(:disabled) {
+  background: var(--lr-bg);
+}
+
+.lr-panel__keys {
+  color: var(--lr-text-faint);
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-caption);
 }
 
 /* ---------------------------------------------------------------- 列表栏 */
@@ -192,38 +345,29 @@
   height: 100%;
 }
 
-/* 不挂标题（§3.1）：头行只有右上角的折叠钮。 */
+/*
+ * 头行（第三轮）：左边**新建长条**、右边收起钮。长条在顶上而不是栏底 ——
+ * 它要顺手能看见、还要顺手显示快捷键；整栏吃满之后，条目区剩下的空白也清楚。
+ */
 .lr-list__head {
   align-items: center;
   display: flex;
-  height: calc(var(--lr-space-40) + var(--lr-space-8));
 
-  /* 左「+」右「«」：两端分布，中间是留白（§1.0）。 */
-  justify-content: space-between;
-  padding: 0 var(--lr-space-8);
+  /* 只有收起钮，靠右（第七轮）：它原先和新建挤一行，把胶囊挤窄了 39px。 */
+  justify-content: flex-end;
+  padding: var(--lr-space-4) var(--lr-space-8) 0;
 }
 
-.lr-list__create {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: var(--lr-radius-sm);
-  color: var(--lr-accent);
-  cursor: pointer;
-  display: inline-flex;
-  height: var(--lr-space-24);
-  justify-content: center;
-  width: var(--lr-space-24);
-}
-
-.lr-list__create:disabled {
-  color: var(--lr-text-faint);
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.lr-list__create:hover:not(:disabled) {
-  background: var(--lr-surface-raised);
+/*
+ * 新建胶囊独占一行、吃满整栏 —— 右缘因此与下面的条目对齐。
+ *
+ * **这一条曾经漏掉**（第七轮）：JSX 里多包了一层，样式忘了跟着加，于是这个 div 是块级、
+ * 里面的按钮是 inline-block，胶囊缩到内容宽（76px）——悬停让位那 24px 直接把加号推出了
+ * 胶囊外，键位还压在字上。教训：**结构性改动必须同时验几何**，光看测试和单张截图不够。
+ */
+.lr-list__create-row {
+  display: flex;
+  padding: var(--lr-space-4) var(--lr-space-8) 0;
 }
 
 /* 顶栏右端的账户位：一个圆形头像，没有文字（§1.0：符号优先）。 */
@@ -245,6 +389,10 @@
   color: var(--lr-text);
 }
 
+/*
+ * 收起钮给到 32×32（本轮批注 3）：原来是 24×24 的方框里塞一个「«」文字字符 ——
+ * 字小、目标也小，实测点不准。图标换成画出来的 16px 尖角，命中区放大。
+ */
 .lr-list__collapse {
   align-items: center;
   background: transparent;
@@ -253,14 +401,113 @@
   color: var(--lr-text-faint);
   cursor: pointer;
   display: inline-flex;
-  height: var(--lr-space-24);
+  height: var(--lr-space-32);
   justify-content: center;
-  width: var(--lr-space-24);
+  width: var(--lr-space-32);
 }
 
 .lr-list__collapse:hover {
   background: var(--lr-surface-raised);
   color: var(--lr-text);
+}
+
+/*
+ * 新建长条（第三轮）：图标 + 「新建」+ 右端快捷键。三样东西挤在一条 40px 里，
+ * 信息密度靠**结构**（左图标 / 中文字 / 右键位）而不是靠解释性文字。
+ *
+ * 悬停只把底抬一档、字加一档 —— 状态变化，不是装饰（§1.0）。
+ *
+ * **静止时居中，悬停时整组左移**（第五轮第二次改）：第四轮把「＋ 新建」居中、键位绝对
+ * 定位贴右缘，两者在 242px 栏里剩下的那 148px 上**必然**相撞（截图上黏成
+ * 「新建Ctrl + N」）。解法不是把名字挪到左边（那就不居中了），而是**悬停这一刻给键位
+ * 让位**：那 24px 的位移是这一次交互里唯一必要的动，静止态仍然是一个居中的胶囊。
+ */
+.lr-list__create {
+  align-items: center;
+  background: var(--lr-surface-raised);
+  border: 0;
+  border-radius: calc(var(--lr-space-40) / 2);
+
+  /* 控件级投影（§4.6）：它是栏顶的主操作，常驻抬起，所以配得起 2。 */
+  box-shadow: var(--lr-shadow-2);
+  color: var(--lr-text);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  height: var(--lr-space-32);
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--lr-space-12);
+  position: relative;
+  transition: background-color var(--lr-dur-fast) var(--lr-ease);
+}
+
+/* 图标 + 名称作为一组：位移的对象是它，不是两个各挪各的盒子。 */
+.lr-list__create-main {
+  align-items: center;
+  display: flex;
+  gap: var(--lr-space-8);
+  transition: transform var(--lr-dur-fast) var(--lr-ease);
+}
+
+/*
+ * 往左让 24：键位大约占 52，让位后「＋ 新建」与它之间还剩一段空隙（约 24），
+ * 所以不是「刚好贴住」，是看得出一段呼吸。
+ */
+.lr-list__create:hover .lr-list__create-main,
+.lr-list__create:focus-visible .lr-list__create-main {
+  transform: translateX(calc(var(--lr-space-24) * -1));
+}
+
+.lr-list__create-icon {
+  color: var(--lr-accent);
+  display: block;
+  line-height: 0;
+}
+
+.lr-list__create-label {
+  font-size: var(--lr-font-size-meta);
+}
+
+/*
+ * 快捷键：**悬停才出现**（第四轮），贴右端、**不参与居中**（第五轮第二次改）。
+ *
+ * 它常驻会把「＋ 新建」挤歪，所以取绝对定位；而绝对定位的代价是「淡入那一刻会压字」
+ * —— 那个代价由上面那条「悬停时整组左移 24」偿付。静止态两者互不相干。
+ */
+.lr-list__create-keys {
+  color: var(--lr-text-faint);
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-caption);
+  inset-inline-end: var(--lr-space-12);
+  opacity: 0;
+  position: absolute;
+  white-space: nowrap;
+  transition: opacity var(--lr-dur-fast) var(--lr-ease);
+}
+
+.lr-list__create:hover .lr-list__create-keys,
+.lr-list__create:focus-visible .lr-list__create-keys {
+  opacity: 1;
+}
+
+.lr-list__create:hover {
+  background: var(--lr-accent-subtle);
+}
+
+.lr-list__create:active {
+  background: var(--lr-surface);
+}
+
+/* 条目区自己撑满剩下的高度：空白处双击也是新建（和 VS Code 的双击一个手感）。 */
+.lr-list__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+
+  /* 主操作和列表之间那一段空气（12）：否则胶囊看起来像列表的第一行。 */
+  padding-block-start: var(--lr-space-12);
 }
 
 .lr-list__empty {
@@ -272,7 +519,12 @@
 }
 
 .lr-list__items {
+  display: flex;
   flex: 1;
+
+  /* 行与行之间留 4：白条的行级投影（§4.6）会往下落 2px，紧贴下一行时读起来"脏"。 */
+  flex-direction: column;
+  gap: var(--lr-space-4);
   list-style: none;
   margin: 0;
   overflow-y: auto;
@@ -281,23 +533,50 @@
 
 /*
  * 条目是**椭圆长条按钮**（批注 4）：两端内缩、整条圆角，不再贴满整列。
- * 选中不再用左侧 2.5px 强调条 —— 圆角会把那条线切弯；改为填充抬一级 + 文字加重，
- * 两路并行（§7.3：状态不靠单一通道）。
+ * 选中不再用左侧 2.5px 强调条 —— 圆角会把那条线切弯；改为填充抬一级 + 投影 + 字色，
+ * 三路并行（§7.3：状态不靠单一通道）。**字重不参与**，见 `[aria-current]` 那条。
  */
 .lr-list__item {
+  align-items: center;
   background: transparent;
   border: 0;
+
+  /* 全圆：高度 32 → 半径 16，与新建胶囊同一个形状（高度改了半径也必须跟着改）。 */
   border-radius: calc(var(--lr-space-32) / 2);
   color: var(--lr-text-muted);
   cursor: pointer;
-  display: block;
+  display: flex;
   font-family: inherit;
   font-size: var(--lr-font-size-meta);
+  gap: var(--lr-space-8);
+  justify-content: space-between;
+
+  /*
+   * 高度**定死 32**（第七轮第二次改）。先是 36.8（`8 + 13×1.6 + 8`）—— 行界落在半个
+   * 像素上，边缘与基线每行抖一次；后来定死 40，用户又觉得"条目上下距离太松"。
+   * 32 是密而不挤的那一档：13px 文字 + 上下各 5.6 的呼吸，与新建胶囊同高，整栏一个节奏。
+   */
+  height: var(--lr-space-32);
   margin: 0 var(--lr-space-8);
-  padding: var(--lr-space-8) var(--lr-space-12);
+  padding: 0 var(--lr-space-12);
   text-align: start;
-  transition: background-color var(--lr-dur-fast) var(--lr-ease);
+  transition:
+    background-color var(--lr-dur-fast) var(--lr-ease),
+    box-shadow var(--lr-dur-fast) var(--lr-ease);
   width: calc(100% - var(--lr-space-16));
+}
+
+.lr-list__item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 只读标记：形状（锁）先说话，颜色只是跟着（§7.3 第 1 条）。 */
+.lr-list__lock {
+  color: var(--lr-text-faint);
+  display: block;
+  line-height: 0;
 }
 
 .lr-list__item:disabled {
@@ -305,19 +584,36 @@
   opacity: 0.45;
 }
 
-/* 选中项：左侧 2.5px 强调条 + surface-raised 底（§3.1、§4.2 逐字）。 */
+/* 选中项：填充抬一级 + 文字加重（§3.1、§4.2）。 */
 .lr-list__item[aria-current="true"] {
-  background: var(--lr-surface-raised);
+  /* 选中 = **强调色的淡底**（第七轮，对照成熟产品）。列表里没人用「白卡 + 投影」：
+     选中是这一行的**底色**变了，不是这一行浮起来了 —— 浮起来意味着它可以被拖走。 */
+  background: var(--lr-accent-subtle);
   color: var(--lr-text);
-  font-weight: 600;
+
+  /*
+   * **选中不改字重**（第六轮第二次改）。原先是 `font-weight: 600`：中文在 Windows 上
+   * 是**合成加粗**，13px 下笔画突然变粗变黑，和上下一比不像同一套字 ——
+   * 用户的原话是"说不上来的奇怪"。
+   *
+   * 实测过一件反直觉的事：**字宽没变**（同一句话 600 与 400 都是 182px，合成加粗只加
+   * 笔画不减间距），所以跳的纯粹是重量。重量恰恰是列表里最不该跳的东西：
+   * 一行变粗，整列的"呼吸"就跟着变。
+   *
+   * 现在选中由**填充 + 投影 + 字色**三路给（前两者不是色相，符合 §7.3 第 1 条）。
+   */
 }
 
-.lr-list__item:hover:not(:disabled) {
+/*
+ * 悬停态必须**排除选中项**：`:hover` 比 `[aria-current]` 多一个伪类，不排除的话
+ * 鼠标扫过正在编辑的那条，它的底色会被 hover 的白色盖掉 —— 看起来像"取消选中了"。
+ */
+.lr-list__item:hover:not(:disabled, [aria-current="true"]) {
   background: var(--lr-surface-raised);
   color: var(--lr-text);
 }
 
-.lr-list__item:active:not(:disabled) {
+.lr-list__item:active:not(:disabled, [aria-current="true"]) {
   background: var(--lr-surface);
 }
 
@@ -398,7 +694,16 @@
 
 /* ------------------------------------------------------------------ 读面 */
 
+/*
+ * 读面 = **画布**（第五轮）。它退回到与侧栏同一级的底（`--lr-surface`），
+ * 真正抬起来的是画布上那条**正文纵栏**（`editor/Editor.css` 的 `.lr-editor`）。
+ *
+ * 上一版把整片读面抬成 `--lr-surface-raised`，等于「桌面和正文刷同一个白」——
+ * 实机反馈是「看不出来要往哪儿写」：边界只有那一圈焦点环，而那圈环读起来像输入框。
+ * 层级仍然是 §2.3 的「明度不靠投影」，只是把抬起来的那一层从**整个区**缩到**那张纸**。
+ */
 .lr-read {
+  background: var(--lr-surface);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -414,36 +719,27 @@
 }
 
 /*
- * 读面没有头部（批注 2）：不占编辑器顶部，那条横线也撤了，所以这里自己给顶上留白。
- * 正文 58ch（§3.1）：窗口再宽也是留白增长，不是行宽增长。
+ * 画布的内边距：正文那一栏距画布 24 —— 四面一样，别让它贴边。
+ * 版心（58ch）不在这里：正文那一栏有自己的最大宽度，其余几页（设置 / 组件 / 事件 / 关于）
+ * 由下面那条 `> :not(.lr-editor)` 兜住。
  */
 .lr-read__body {
   /* 读面正文比界面正文大一档，行距 1.85（ui.md §4.5）。 */
   flex: 1;
   font-size: var(--lr-font-size-read);
   line-height: var(--lr-line-read);
-  margin: 0 auto;
-  max-width: var(--lr-measure);
   overflow-y: auto;
-  padding: var(--lr-space-32);
-  padding-top: var(--lr-space-24);
+  padding: var(--lr-space-24);
   width: 100%;
 }
 
-/* --------------------------------------------------------------- 检视器 */
-
-.lr-inspector {
-  background: var(--lr-surface);
-  border-left: 1px solid var(--lr-border);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.lr-inspector__body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--lr-space-20) var(--lr-space-16);
+/*
+ * 不坐在正文纵栏上的那几页（设置 / 组件 / 事件 / 关于 / 欢迎面）自己收版心 ——
+ * 窗口一宽，一句话横穿整个屏幕就不是正文了。
+ */
+.lr-read__body > :not(.lr-editor) {
+  margin-inline: auto;
+  max-width: var(--lr-measure);
 }
 
 /* -------------------------------------------------------------- 状态条 */
@@ -469,61 +765,12 @@
   min-width: 0;
 }
 
-/* ---------------------------------------- 收窄（§3.3）：先检视器，再列表，最后读面 */
+/* ---------------------------------------- 收窄（§3.3）：先列表栏，最后才动读面 */
 
-/* 1000–1179px：检视器折叠为 40px 图标条，展开时是浮层。 */
-@media (width < 1180px) {
-  /*
-   * 1000–1179px：检视器折叠为 **40px 图标条**，展开时是浮层（ui.md §3.3）。
-   *
-   * 这里曾经写错一次，值得留一句：原来是「data-inspector 是 open 就浮层展开」，
-   * 而 open 的默认值是真 —— 于是窄窗口下浮层**默认盖住读面正文**，
-   * 把「用户可以展开」实现成了「默认展开」。现在展开与否由 JS 按宽度决定：
-   * 宽窗口默认展开、窄窗口默认只留图标条。
-   */
-  .lr-shell__inspector {
-    width: 40px;
-  }
-
-  .lr-rail {
-    align-items: flex-start;
-    background: var(--lr-surface);
-    border-left: 1px solid var(--lr-border);
-    display: flex;
-    height: 100%;
-    justify-content: center;
-    padding-top: var(--lr-space-16);
-  }
-
-  .lr-inspector {
-    display: none;
-  }
-
-  .lr-shell[data-inspector="open"] .lr-inspector {
-    background: var(--lr-surface);
-    border-left: 1px solid var(--lr-border);
-    bottom: 28px;
-    display: flex;
-    position: fixed;
-    right: 40px;
-    top: 0;
-    width: 232px;
-    z-index: 3;
-  }
-}
-
-/* 820–999px：列表栏折叠；导航条收为 48px 纯图标（此时才允许省文字）。 */
+/* 820–999px：导航条收为 48px 纯图标；列表栏照 wide 那套开关走（收起时留窄条）。 */
 @media (width < 1000px) {
   .lr-shell__nav {
     width: 48px;
-  }
-
-  .lr-shell__list {
-    display: none;
-  }
-
-  .lr-shell[data-list="open"] .lr-shell__list {
-    display: block;
   }
 }
 
@@ -546,6 +793,19 @@
   /* 互斥：一次只在前台放一个。 */
   .lr-shell[data-pane="list"] .lr-shell__read,
   .lr-shell[data-pane="read"] .lr-shell__list {
+    display: none;
+  }
+
+  /*
+   * 单栏里「列表 / 读面」本身就是前后台，不存在「把列表收成窄条」这回事 ——
+   * 收起状态在这里直接按整栏处理。
+   */
+  .lr-shell[data-list="closed"] .lr-shell__list {
+    width: 242px;
+  }
+
+  /* 单栏里「返回列表」那颗按钮负责来回，收起之后浮出的展开钮在这没意义。 */
+  .lr-shell__expand {
     display: none;
   }
 

@@ -93,12 +93,15 @@ export function BackIcon() {
   );
 }
 
-/** 检视器：右侧栏的轮廓。窄窗口下它就是那条图标条上的按钮。 */
-export function PanelIcon() {
+/**
+ * 收起列表：两个左向尖角。以前这里是文字字符「«」—— 字号小、点击目标只有 24px，
+ * 实测点不准（本轮批注 3），所以改画成 16px 的图形，按钮本身给到 32×32。
+ */
+export function CollapseIcon() {
   return (
     <Glyph size={16}>
-      <rect height="12" rx="1.5" width="12" x="2" y="2" />
-      <path d="M10 2v12" />
+      <path d="M8.4 4.2L4.6 8l3.8 3.8" />
+      <path d="M12.4 4.2L8.6 8l3.8 3.8" />
     </Glyph>
   );
 }
@@ -108,6 +111,57 @@ export function PlusIcon() {
   return (
     <Glyph size={18} weight={2}>
       <path d="M8 3.2v9.6M3.2 8h9.6" />
+    </Glyph>
+  );
+}
+
+/**
+ * 工具：一把扳手。**它和「设置」不是一回事**：设置是「这套工具怎么配」，工具是
+ * 「当前这份东西能做什么」。点开是上层浮层（弹出框），不是又一列。
+ */
+export function ToolIcon() {
+  return (
+    <Glyph>
+      <path d="M10.6 2.6a3.6 3.6 0 0 0-4.4 4.6L2.6 10.8l2.6 2.6 3.6-3.6a3.6 3.6 0 0 0 4.6-4.4l-2 2-2.4-.6-.6-2.4z" />
+    </Glyph>
+  );
+}
+
+/**
+ * 属性：**书架**，不是档案盒。维护者原话：「它应该是档案图标，不是归档图标」
+ * —— 档案是**存着的东西**（书架上一排书），归档是一个动作（往盒子里塞）。
+ * 这里画三本立着的书 + 一条搁板，缩到 20px 也还认得出是书架。
+ */
+export function ShelfIcon() {
+  return (
+    <Glyph>
+      <path d="M2.4 3.2h2.4v9.4H2.4z" />
+      <path d="M5.9 3.2h2.4v9.4H5.9z" />
+      <path d="M9.3 4.3l2.3-.65 1.9 8.75-2.3.65z" />
+      <path d="M1.8 12.6h12.4" />
+    </Glyph>
+  );
+}
+
+/**
+ * 锁：条目的「改不了」标记。**只标真的改不了的**（权限判定的结果），不标「暂时没做」——
+ * 后者该由禁用态表达，而不是在名字后面挂一把锁。
+ */
+export function LockIcon() {
+  return (
+    <Glyph size={12} weight={1.6}>
+      <rect height="6" rx="1.2" width="9" ry="1.2" x="3.5" y="7" />
+      <path d="M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7" />
+    </Glyph>
+  );
+}
+
+/** 展开列表栏：收起之后留在读面左边那条窄条上的那颗钮（收起方向的反面）。 */
+export function ExpandIcon() {
+  return (
+    <Glyph size={16}>
+      <path d="M7.6 4.2L11.4 8l-3.8 3.8" />
+      <path d="M3.6 4.2L7.4 8l-3.8 3.8" />
     </Glyph>
   );
 }
