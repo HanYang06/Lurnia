@@ -1,0 +1,361 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/**
+ * 所见即所得编辑面的排版（路线 109）。口径：ui.md §1.0（留白 / 精简 / 非必要不动）、
+ * §4.5（字号与行距只有那几档）、§八（颜色只能走令牌），editor.md §4.6（层级用边界与内缩）。
+ *
+ * 三层分工，别混：
+ *
+ * 1. 这一层是**画布上的一张纸**（第六轮）：纯白底 + 10px 圆角 + 两级投影（§4.6），
+ *    坐在 `Shell.css` 里那片浅暖的**画布**上。**没有描边** —— 描边是「画一个框」，
+ *    投影是「东西浮起来」，后者才是纸的物理事实；用户对前者的原话是「给人一种强调的
+ *    感觉」。宽度也不是写死的：左右两条抓取带能把纸拖到 400–880px（`usePageWidth.ts`）。
+ * 2. 纸里面分两区：**头区**（标题，文档自己的名字）与**正文区**。标题是**字段**，
+ *    不是上一轮被撤掉的那块「标题牌」：它跟着 `doc.save` 的 `title` 落库，不写进正文，
+ *    所以改名不会在正文里多出一行。
+ * 3. 版心宽度是这张纸的事（`--lr-measure`，58ch），块与块的留白只由相邻关系产生
+ *    （`* + *`），单个块不背外边距。
+ *
+ * 选择器用元素名而不是自造的类：ProseMirror 落下来的 DOM 是 `p / h1–h3 / ul / ol / li /
+ * blockquote / pre / code / table / a / mark`，给每个再起一个类只是把同一件事写两遍。
+ * 它自己那个 `.ProseMirror` 是 CamelCase，与本仓库的类名门禁不兼容，所以版面一律挂在
+ * `.lr-editor__surface`（我们对 contenteditable 根的命名）之下。
+ */
+
+/*
+ * 一篇文档 = 画布上的一张**纸**（第六轮）。
+ *
+ * 走过三段，每一段都是被实机截图推翻的：
+ *
+ * 1. 只抬一级底色（第五轮）—— 「桌面和正文刷同一个白」，看不出编辑区在哪；
+ * 2. 加 1px 边框 + 圆角（第五轮第一次改）—— 「给人一种强调的感觉」，像一块控件；
+ * 3. **纯白 + 圆角 + 投影、不要描边**（现在）—— 用户的原话是「两个浅色放一块儿怪怪的」：
+ *    暖白纸叠在暖底上，两个浅色互相抵消，所以纸面必须**纯白**（§2.4），
+ *    再靠投影把它从画布上托起来（§4.6）。
+ *
+ * `min-height: 100%` 让空白文档也撑满画布 —— 不铺满的话，底下那一大片眼睛看着像
+ * 编辑区、点下去却没有光标。
+ */
+.lr-editor {
+  background: var(--lr-surface-raised);
+  border-radius: var(--lr-radius-lg);
+  box-shadow: var(--lr-shadow-3);
+  display: flex;
+  flex-direction: column;
+  margin-inline: auto;
+  max-width: 100%;
+  min-height: 100%;
+  position: relative;
+
+  /* 宽度归用户（§4.6 第 3 条）：内联变量优先，没有就退回 58ch 的版心。 */
+  width: var(--lr-page-width, var(--lr-measure));
+}
+
+/*
+ * 纸左右两条抓取带。**看不见的 12px**，不是一道线 ——
+ * 它只在悬停/键盘聚焦时显出一条 2px 的强调色细线，告诉用户「这里可以拖」。
+ *
+ * 位置往外挪 8：抓取带落在纸上，压的就是正文第一列的字；落在纸外，
+ * 用户从留白里伸手去够，手感和「推开一张纸」一致。
+ */
+.lr-editor__grip {
+  cursor: col-resize;
+  inset-block: 0;
+  position: absolute;
+  touch-action: none;
+  width: var(--lr-space-12);
+  z-index: 2;
+}
+
+.lr-editor__grip[data-edge="start"] {
+  inset-inline-start: calc(var(--lr-space-8) * -1);
+}
+
+.lr-editor__grip[data-edge="end"] {
+  inset-inline-end: calc(var(--lr-space-8) * -1);
+}
+
+/*
+ * 抓取带**不画整圈外环**（§4.3 的第二条例外，见 ui.md）：它是全高的 12px 细带，
+ * 外环会圈出一条一人高的橙色矩形，读起来像渲染错误。焦点改由下面那条 2px 强调色
+ * 细线给出 —— 与悬停同一个指示，位置就在「你要推的地方」。
+ */
+.lr-editor__grip:focus-visible {
+  outline: none;
+}
+
+/*
+ * 拖动提示：纸外沿的一条**长提手**，两端渐隐（用户原话：「比较长的版本，带渐变的，
+ * 看着挺漂亮」——上一版被我改短了，改回来）。2px 宽、上下各留 12% 的呼吸，
+ * 渐隐让它在纸的圆角附近自然收掉，不像一根从天上挂下来的线。
+ */
+.lr-editor__grip::after {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--lr-accent) 18%,
+    var(--lr-accent) 82%,
+    transparent
+  );
+  border-radius: var(--lr-radius-sm);
+  content: "";
+  inset-block: 12%;
+  inset-inline: 5px;
+  opacity: 0;
+  position: absolute;
+  transition: opacity var(--lr-dur-fast) var(--lr-ease);
+}
+
+.lr-editor__grip:hover::after,
+.lr-editor__grip:focus-visible::after {
+  opacity: 1;
+}
+
+/*
+ * 空页的水印（第六轮）：一枚很淡的水豚压在纸的右下角。
+ *
+ * **为什么是水印而不是「再画点什么」**：空白的纸不缺信息，缺的是**质感** ——
+ * 一整片纯白会读成「还没加载出来」。压一枚自家标识的水印（信纸的用法），
+ * 这一页立刻有主人；而它不是内容：`aria-hidden`、`pointer-events: none`、
+ * 不进文档模型，**一有字就淡出**（`data-empty` 由 `Editor.tsx` 的事务出口维护）。
+ *
+ * 不透明度取 0.08：再高就成了「贴了个 logo」，再低就看不见了。
+ * 淡出走 `--lr-dur-base`，与其它状态变化同一档（§4.4）。
+ */
+.lr-editor__mark {
+  block-size: 132px;
+  inset-block-end: var(--lr-space-32);
+  inset-inline-end: var(--lr-space-32);
+  inline-size: 132px;
+  opacity: 0.08;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity var(--lr-dur-base) var(--lr-ease);
+  user-select: none;
+}
+
+/* 有字了：水印退场（不参与布局，所以退场不影响正文的任何一行）。 */
+.lr-editor[data-empty="false"] .lr-editor__mark {
+  opacity: 0;
+}
+
+/*
+ * 头区：标题。**没有分隔线**（§1.0）—— 标题与正文的分界靠字号、字重与留白三样，
+ * 一条横线只是把纸又切了一刀。
+ */
+.lr-editor__head {
+  padding: var(--lr-space-32) var(--lr-space-32) 0;
+}
+
+/*
+ * 标题输入框长得像正文，不像表单：没有边框、没有底色、字号走 title 档、字重 600。
+ * 只在**空**的时候给一句占位「无标题」—— 它回答的是「这里该填什么」，
+ * 不是替用户写标题（§1.0：说明属于文档，不属于界面）。
+ */
+.lr-editor__title {
+  background: transparent;
+  border: 0;
+  color: var(--lr-text);
+  display: block;
+  font-family: var(--lr-font-sans);
+  font-size: var(--lr-font-size-title);
+  font-weight: 600;
+  line-height: var(--lr-line-tight);
+  padding: 0;
+  width: 100%;
+
+  /* 光标取强调色（第六轮）：一片素纸里唯一会动的东西，让它带上品牌的橙。 */
+  caret-color: var(--lr-accent);
+}
+
+.lr-editor__title::placeholder {
+  color: var(--lr-text-faint);
+}
+
+/*
+ * 正文区：编辑器自己塞进来的 contenteditable 是它的孩子，所以要 flex 撑满，
+ * 否则正文只有一行时下面那一大片留白是**点不到**的。
+ */
+.lr-editor__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--lr-space-16) var(--lr-space-32) var(--lr-space-32);
+}
+
+.lr-editor__surface {
+  color: var(--lr-text);
+  flex: 1;
+
+  /* 同上：正文光标也是强调色 —— 这是「空页不平淡」最省的那一笔。 */
+  caret-color: var(--lr-accent);
+  font-family: var(--lr-font-sans);
+  font-size: var(--lr-font-size-read);
+  line-height: var(--lr-line-read);
+
+  /* 编辑时连续空格与换行不能被折叠，否则光标落点与看到的字不在一处。 */
+  overflow-wrap: break-word;
+
+  /* 占位是绝对定位的伪元素，锚在这个盒子上。 */
+  position: relative;
+  white-space: pre-wrap;
+}
+
+/*
+ * 空文档的占位。一句话回答「从哪儿开始写」—— 一片白里只有一个光标，光标再闪也
+ * 不是「可以落笔的地方」。它**不进文档模型**（伪元素），有字就消失（`data-empty`），
+ * 所以不会被存进正文；`pointer-events: none` 保证点它等于点正文。
+ */
+.lr-editor__surface[data-empty="true"]::before {
+  color: var(--lr-text-faint);
+  content: "开始写…";
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/*
+ * 文本输入面**不画外环**（ui.md §4.3 的唯一例外，见该节）：一圈 2px 强调色套在 58ch
+ * 的正文列上，读起来是一个表单输入框，而不是「我正在写这段字」。
+ *
+ * **替代物就是光标本身** —— 这也是所有编辑器（VS Code / Obsidian / Notion）的做法：
+ * 键盘焦点落进正文，光标就在你要打字的地方闪。这一条写进了 ui.md §4.3，
+ * `states.test.ts` 按「文件 + 选择器」钉住它，不是谁都能关。
+ */
+.lr-editor__title:focus-visible,
+.lr-editor__surface:focus-visible {
+  outline: none;
+}
+
+/*
+ * 外边距归相邻关系，所以块自己的默认外边距一律清零：UA 的 1em 与令牌的 16px 叠在一起，
+ * 间距就变成两套规则的叠加，改哪一套都不对。
+ */
+.lr-editor__surface h1,
+.lr-editor__surface h2,
+.lr-editor__surface h3,
+.lr-editor__surface p,
+.lr-editor__surface ul,
+.lr-editor__surface ol,
+.lr-editor__surface blockquote,
+.lr-editor__surface pre,
+.lr-editor__surface hr {
+  margin: 0;
+}
+
+/* 顶层块之间 16，嵌套（列表项、引用内部）8。 */
+.lr-editor__surface > * + * {
+  margin-block-start: var(--lr-space-16);
+}
+
+.lr-editor__surface li > * + *,
+.lr-editor__surface blockquote > * + * {
+  margin-block-start: var(--lr-space-8);
+}
+
+/*
+ * 标题 1–3 级。字号只有五档（§4.5），三档分给三级，字重 600 承担「这是标题」；
+ * 标题是行距的例外（§4.5：标题走 --lr-line-tight）。
+ */
+.lr-editor__surface h1,
+.lr-editor__surface h2,
+.lr-editor__surface h3 {
+  font-weight: 600;
+  line-height: var(--lr-line-tight);
+}
+
+.lr-editor__surface h1 {
+  font-size: var(--lr-font-size-title);
+}
+
+.lr-editor__surface h2 {
+  font-size: var(--lr-font-size-read);
+}
+
+.lr-editor__surface h3 {
+  font-size: var(--lr-font-size-body);
+}
+
+/* 列表缩进走间距令牌，不用浏览器默认的 40px。 */
+.lr-editor__surface ul,
+.lr-editor__surface ol {
+  padding-inline-start: var(--lr-space-24);
+}
+
+/*
+ * 引用块：**边界承载结构**（editor.md §4.6），所以取 `--lr-border-strong` 而不是装饰性的
+ * `--lr-border` —— 对抬起的读面实算 3.08:1（深）/ 3.41:1（浅），过 §7.1 对结构线的 3:1。
+ */
+.lr-editor__surface blockquote {
+  border-inline-start: 2px solid var(--lr-border-strong);
+  padding-inline-start: var(--lr-space-16);
+}
+
+/* 代码块：等宽、行距收一档、长了横向滚动。不给底色（§4.6：层级用边界与内缩）。 */
+.lr-editor__surface pre {
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-body);
+  line-height: var(--lr-line-body);
+  overflow-x: auto;
+}
+
+/* 行内 code 只换字体：字号再动一档，行内文字的行高会跟着跳。 */
+.lr-editor__surface code {
+  font-family: var(--lr-font-mono);
+}
+
+/* 分隔线是一条线，不是一块留白。 */
+.lr-editor__surface hr {
+  border: 0;
+  border-block-start: 1px solid var(--lr-border);
+}
+
+/* 表格：最小可读 —— 边框与表头字重承载结构，列宽与其余样式归路线 116。 */
+.lr-editor__surface table {
+  border-collapse: collapse;
+}
+
+.lr-editor__surface th,
+.lr-editor__surface td {
+  border: 1px solid var(--lr-border);
+  padding: var(--lr-space-4) var(--lr-space-8);
+  text-align: start;
+}
+
+.lr-editor__surface th {
+  font-weight: 600;
+}
+
+/* 链接：强调色实算 6.73:1（深）/ 5.17:1（浅），过 §7.1 的 4.5:1；下划线保留（§7.3 不只靠颜色）。 */
+.lr-editor__surface a {
+  color: var(--lr-accent);
+}
+
+/*
+ * 高亮：§4.6 定的组合（`--lr-accent-subtle` 作底、文字仍取 `--lr-text`）。
+ * 文档写这一条时「对比度尚未实算」，现在算过了：9.90:1（深）/ 11.29:1（浅），过 4.5:1。
+ */
+.lr-editor__surface mark {
+  background: var(--lr-accent-subtle);
+  color: var(--lr-text);
+}
+
+/*
+ * 原子块（image / attachment / doc_ref）落一句说明，不落本体 —— I9 不许渲染时联网，
+ * 远程图片就是一次请求。
+ */
+.lr-editor__surface .lr-editor__atom {
+  color: var(--lr-text-muted);
+  font-size: var(--lr-font-size-meta);
+  line-height: var(--lr-line-tight);
+}
+
+/*
+ * 键盘选中原子块时要看得见（§7.3）。ProseMirror 加的那个类是本仓库门禁不接受的
+ * CamelCase，所以用属性选择器认它；只补焦点环，不动布局。
+ */
+.lr-editor__surface [class~="ProseMirror-selectednode"] {
+  outline: var(--lr-focus-ring-width) solid var(--lr-accent);
+}
