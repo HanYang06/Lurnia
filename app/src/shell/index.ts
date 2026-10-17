@@ -5,29 +5,36 @@
  */
 
 export {
-  Inspector,
   ListPane,
   LogSpine,
   NavRail,
   ReadPane,
   Shell,
   TopBar,
+  TopPanelButton,
   type ListEntry,
   type NavModule,
+  type TopPanel,
   type ShellLayout,
   type ShellProps,
   type VersionNode,
 } from "./Shell";
 
+export { BrandLockup, BrandMark } from "./brand";
+export { WindowControls } from "./WindowControls";
+export { Welcome, type Shortcut } from "./Welcome";
+
 export {
   AiIcon,
+  ShelfIcon,
   BackIcon,
+  CollapseIcon,
+  ExpandIcon,
+  LockIcon,
   NoteIcon,
-  PanelIcon,
   PermissionIcon,
   ProjectIcon,
   SettingsIcon,
+  ToolIcon,
   UserIcon,
 } from "./icons";
-
-export { useMediaQuery } from "./useMediaQuery";
