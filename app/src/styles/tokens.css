@@ -64,6 +64,17 @@
   /* 焦点环（ui.md §4.3）：2px 外环 + 2px 偏移，不得以 outline:none 移除后不补替代物。 */
   --lr-focus-ring-width: 2px;
   --lr-focus-ring-offset: 2px;
+
+  /*
+   * 层级的三级投影（ui.md §4.6）。**方案无关**：浅色端靠它把物体从平面上「拿起来」，
+   * 深色端几乎看不见 —— 那不是没做，是 §2.3 的结论（深色端层级靠明度）。
+   *
+   * 三级不是三个随手值，是按「这东西有多高」分的：行 1、控件 2、物体 3。
+   * **跨级是错的**：列表条目拿 3，会在侧栏里砸出一个坑。
+   */
+  --lr-shadow-1: 0 1px 2px oklch(0 0 0 / 5%), 0 2px 6px oklch(0 0 0 / 4%);
+  --lr-shadow-2: 0 1px 2px oklch(0 0 0 / 5%), 0 4px 10px oklch(0 0 0 / 5%);
+  --lr-shadow-3: 0 1px 2px oklch(0 0 0 / 5%), 0 10px 28px oklch(0 0 0 / 6%);
 }
 
 /**
@@ -74,29 +85,32 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* 中性阶梯：色相 196、彩度 0.014 的极轻冷青，不是纯灰（ui.md §2.1）。
-     彩度不得超过 0.02 —— 超过之后深色底会被读成「墨绿」。 */
-  --lr-bg: oklch(0.17 0.014 196);
-  --lr-surface: oklch(0.205 0.014 196);
-  --lr-surface-raised: oklch(0.245 0.014 196);
-  --lr-border: oklch(0.31 0.014 196);
-  --lr-border-strong: oklch(0.53 0.014 196);
-  --lr-text-faint: oklch(0.6 0.014 196);
-  --lr-text-muted: oklch(0.72 0.014 196);
-  --lr-text: oklch(0.88 0.014 196);
-  --lr-text-strong: oklch(0.965 0.014 196);
+  /* 中性阶梯：色相 70、彩度 0.008 的暖砂，不是纯灰（ui.md §2.1）。
+     **不是 49**：49 是标识里棕与橙的中间值，但那个色相在浅色端的高明度上会读成
+     「粉」（橙红段的彩度在 L 0.96 以上就是桃色），于是底色抢戏、和别的颜色配不上。
+     70 仍属同一族（棕 → 砂 → 橙），只是退到「说不出是什么色」的那一侧。 */
+  --lr-bg: oklch(0.17 0.008 70);
+  --lr-surface: oklch(0.205 0.008 70);
+  --lr-surface-raised: oklch(0.245 0.008 70);
+  --lr-border: oklch(0.31 0.008 70);
+  --lr-border-strong: oklch(0.53 0.008 70);
+  --lr-text-faint: oklch(0.6 0.008 70);
+  --lr-text-muted: oklch(0.72 0.008 70);
+  --lr-text: oklch(0.88 0.008 70);
+  --lr-text-strong: oklch(0.965 0.008 70);
 
-  /* 强调色：全项目仅此一条色相轴（ui.md §2.2）。明度锁在舒适带内。 */
-  --lr-accent: oklch(0.715 0.122 196);
-  --lr-accent-subtle: oklch(0.285 0.04 196);
-  --lr-on-accent: #071f1f;
+  /* 强调色：水豚的暖橙，全项目仅此一条色相轴（ui.md §2.2）。明度锁在舒适带内，
+     明度与彩度都直接取自标识的受光面（`#D67B42`），不是另调的一枚。 */
+  --lr-accent: oklch(0.672 0.134 51);
+  --lr-accent-subtle: oklch(0.285 0.04 51);
+  --lr-on-accent: #2a1206;
 
   /* 填充态的悬停/按压（ui.md §4.2）。**这两个不是文档里逐个列出的令牌，是从规则算出来的**：
      深色端填充上坐的是深色字（--lr-on-accent），所以悬停 +0.04 明度、按压再往同方向走；
      浅色端填充上坐的是浅色字，方向相反。tokens.test.ts 按 §4.2 的规则验这两个值，
      不是照抄某个数字 —— 规则改了这里会红。 */
-  --lr-accent-hover: oklch(0.755 0.122 196);
-  --lr-accent-active: oklch(0.795 0.122 196);
+  --lr-accent-hover: oklch(0.712 0.134 51);
+  --lr-accent-active: oklch(0.752 0.134 51);
 
   /* 语义三态（ui.md §2.5）：淡底 + 饱和字，不是整块高饱和色块。 */
   --lr-allow-fill: #162b1c;
@@ -114,24 +128,31 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --lr-bg: oklch(0.978 0.014 196);
-  --lr-surface: oklch(0.955 0.014 196);
-  --lr-surface-raised: oklch(0.999 0.014 196);
-  --lr-border: oklch(0.89 0.014 196);
-  --lr-border-strong: oklch(0.635 0.014 196);
-  --lr-text-faint: oklch(0.56 0.014 196);
-  --lr-text-muted: oklch(0.47 0.014 196);
-  --lr-text: oklch(0.31 0.014 196);
-  --lr-text-strong: oklch(0.18 0.014 196);
+  --lr-bg: oklch(0.978 0.008 70);
+  --lr-surface: oklch(0.955 0.008 70);
 
-  /* 强调色：与深色端同一条色相轴，明度按 §2.2 的浅色舒适带（L 0.44–0.56）取。 */
-  --lr-accent: oklch(0.525 0.09 196);
-  --lr-accent-subtle: oklch(0.945 0.04 196);
-  --lr-on-accent: #f6fefd;
+  /* 纸面**纯白**（第六轮第二次改）：它不再是「比底色亮一点的暖白」——
+     暖白叠在暖底上，两个浅色互相抵消，屏幕上读不出「这是一张纸」。
+     纯白 + 圆角 + 投影（§4.6），纸才站得住。 */
+  --lr-surface-raised: oklch(1 0 0);
+  --lr-border: oklch(0.86 0.008 70);
+
+  /* 0.630 而不是 0.635：暖砂底上 0.635 只有 3.001，贴着「控件边界 ≥3」的线。 */
+  --lr-border-strong: oklch(0.63 0.008 70);
+  --lr-text-faint: oklch(0.56 0.008 70);
+  --lr-text-muted: oklch(0.47 0.008 70);
+  --lr-text: oklch(0.31 0.008 70);
+  --lr-text-strong: oklch(0.18 0.008 70);
+
+  /* 强调色：与深色端同一条色相轴，明度按 §2.2 的浅色舒适带（L 0.44–0.56）取；
+     彩度 0.130 是这条色相在浅色端还能保持「橙」而不是「棕」的上限附近。 */
+  --lr-accent: oklch(0.525 0.13 51);
+  --lr-accent-subtle: oklch(0.945 0.04 51);
+  --lr-on-accent: #fffbf7;
 
   /* 浅色端填充上是浅色字，所以悬停 −0.03、按压再往暗走（ui.md §4.2 的按压方向规则）。 */
-  --lr-accent-hover: oklch(0.495 0.09 196);
-  --lr-accent-active: oklch(0.465 0.09 196);
+  --lr-accent-hover: oklch(0.495 0.13 51);
+  --lr-accent-active: oklch(0.465 0.13 51);
 
   /* 三态与深色端**逐字相同**（theme.md §3.3）：红/绿/琥珀是语义色，不是品牌色。
      主题包无权改，主题方案更无权改。 */
@@ -144,7 +165,8 @@
 }
 
 /**
- * 主题包（路线 098「水豚」，[theme.md](../../../docs/design/theme.md)）**未实现**：
- * 它只改这上面的令牌**值**，不改令牌名，作用域是新增的 `[data-pack="capybara"]`。
- * 本文件先不做，是为了不让一条未做的路线悄悄影响主线取值。
+ * 主题包（路线 098「水豚」，[theme.md](../../../docs/design/theme.md)）
+ * **2026-10-17 起就是主线本身**：上面两块的取值全部来自它，不再另有「主线色」。
+ * `[data-pack="capybara"]` 这个作用域因此与默认值相同 —— 机制保留，留给将来的包；
+ * 现在写不写这个属性，界面上是同一套颜色。
  */

@@ -13,6 +13,10 @@
 
 .lr-card--raised {
   background: var(--lr-surface-raised);
+
+  /* 抬起的卡片：行级投影（§4.6）。卡片本身有 1px 边，但边只说明「到这儿为止」，
+     要说「它浮在页面上」还得有影子。 */
+  box-shadow: var(--lr-shadow-1);
 }
 
 .lr-skeleton {

@@ -276,7 +276,10 @@ function docTriStates(): { dark: TriSet; light: TriSet } {
 function docValueTable(heading: RegExp): Map<string, string> {
   const table = new Map<string, string>();
   for (const cells of tableRows(section(heading))) {
-    const [name] = backticks(cells[0] ?? "");
+    // 首列不是令牌的行直接跳过：§4.6 里还有一张「圆角三套语言」的表，
+    // 它的首列是 `10px` 这种值。这里不能假定每张表的第一列都是令牌。
+    // 用 `?? ""` 而不是可选链：类型上 `backticks()[0]` 是 `string`，但运行时可能没有。
+    const name = backticks(cells[0] ?? "")[0] ?? "";
     if (!name.startsWith("--lr-")) {
       continue;
     }
@@ -303,7 +306,11 @@ function docSpacingSteps(): number[] {
 
 /** §4.3 的焦点环是散文：`2px --lr-accent` 外环 + `2px` 偏移。 */
 function docFocusRing(): { width: string; offset: string } {
-  const line = UI_MD.split("\n").find((candidate) => candidate.includes("键盘焦点"));
+  // 认「外环」+「偏移」这对词，而不是「键盘焦点」：后者在别的段落里也会出现
+  // （比如新建长条讲「悬停 / 键盘聚焦」），一出现就会把这个解析器带偏。
+  const line = UI_MD.split("\n").find(
+    (candidate) => candidate.includes("外环") && candidate.includes("偏移"),
+  );
   const parts = line ? backticks(line) : [];
   const width = /^([\d.]+px)/.exec(parts[0] ?? "")?.[1];
   const offset = /^([\d.]+px)/.exec(parts[1] ?? "")?.[1];
@@ -361,6 +368,7 @@ const DOC_MOTION = docValueTable(/^### 4\.4\s/);
 const DOC_SPACING = docSpacingSteps();
 const DOC_FOCUS = docFocusRing();
 const DOC_TYPE = docValueTable(/^### 4\.5\s/);
+const DOC_SHADOW = docValueTable(/^### 4\.6\s/);
 
 /** 把 §2.5 的三态并进颜色表：它们在同一个 CSS 块里，所以集合比对要一起算。 */
 function withTriStates(
@@ -496,6 +504,18 @@ describe("令牌层与 ui.md 逐格一致", () => {
     }
   });
 
+  it("投影令牌 = ui.md §4.6（方案无关，所以只对照一张表）", () => {
+    expect(DOC_SHADOW.size).toBeGreaterThan(0);
+    expect(
+      [...CSS_COMMON.keys()].filter((name) => name.startsWith("--lr-shadow-")).sort(),
+    ).toEqual([...DOC_SHADOW.keys()].sort());
+    for (const [name, value] of DOC_SHADOW) {
+      expect(normalizeValue(CSS_COMMON.get(name) ?? ""), `${name} 与 ui.md 不符`).toBe(
+        normalizeValue(value),
+      );
+    }
+  });
+
   it("焦点环 = ui.md §4.3", () => {
     expect(CSS_COMMON.get("--lr-focus-ring-width")).toBe(DOC_FOCUS.width);
     expect(CSS_COMMON.get("--lr-focus-ring-offset")).toBe(DOC_FOCUS.offset);
@@ -512,12 +532,13 @@ describe("令牌层与 ui.md 逐格一致", () => {
     }
   });
 
-  it("正文量度 = ui.md §3.1 表里写的那个 ch", () => {
+  it("正文量度 = ui.md §3.1 表里写的那个 ch（现在是**默认**纸宽）", () => {
     // 从「读面」那一行里读，而不是从散文里捞一个 "58ch" —— 否则测试会自己给自己出题。
+    // 第六轮起用户能把纸拖宽（§4.6），所以 58ch 是默认值，不是硬上限。
     const row = UI_MD.split("\n").find((line) => line.trim().startsWith("| 读面"));
-    const match = row ? /max-width:\s*(\d+ch)/.exec(row) : null;
+    const match = row ? /默认\s*(\d+ch)/.exec(row) : null;
     if (!match) {
-      throw new Error("ui.md §3.1 的「读面」那一行里找不到 max-width: <n>ch");
+      throw new Error("ui.md §3.1 的「读面」那一行里找不到「默认 <n>ch」");
     }
     expect(CSS_COMMON.get("--lr-measure")).toBe(match[1]);
   });
