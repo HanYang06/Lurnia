@@ -131,3 +131,21 @@
 .status__dot[data-state="down"] {
   background: var(--lr-deny-ink);
 }
+
+/*
+ * 落盘状态（自动落盘 / 提交 / 失败）。它进状态条是因为它就是**持久状态**（§3.1），
+ * 不是一次性的提示：写完一句停三秒，眼睛能确认「确实存下去了」。
+ *
+ * 失败那一态除了颜色还带 `✗`（§7.3 第 1 条：状态不许只靠颜色），并且在这里截断 ——
+ * 内核的冲突说明可能很长，状态条只有 28px，不能让它把状态条撑开。
+ */
+.status__note {
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status__note[data-bad="true"] {
+  color: var(--lr-deny-ink);
+}
