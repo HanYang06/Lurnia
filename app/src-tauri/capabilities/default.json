@@ -1,10 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "主窗口的能力。刻意**不含** shell / process：拉起内核是宿主的内部实现（I9 允许），前端不该有自己起进程的权限。",
+  "description": "主窗口的能力。刻意**不含** shell / process：拉起内核是宿主的内部实现（I9 允许），前端不该有自己起进程的权限。另外，自绘标题栏用到的拖窗与最小化/最大化/关闭必须在这里逐条显式开：core:window:default 只包含只读 API（is-*、title、scale-factor 等），写操作一条都不在里面，漏一条的表现是点了没反应。",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close"
   ]
 }
