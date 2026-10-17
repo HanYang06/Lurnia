@@ -41,3 +41,5 @@ dict
 # Agent skill fixtures kept out of this repository's history.
 .agents/skills/skill-creator
 .agents/skills/git-commit
+
+.workbuddy
