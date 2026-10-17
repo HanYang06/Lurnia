@@ -10,3 +10,9 @@ end_of_line = lf
 charset = utf-8
 trim_trailing_whitespace = false
 insert_final_newline = true
+
+# The frontend (app/) follows the JS ecosystem's 2-space convention, which is
+# what prettier is configured with (app/.prettierrc.json). Without this
+# override .editorconfig and the formatter disagree on every file under app/.
+[*.{ts,tsx,js,mjs,css,html,json}]
+indent_size = 2

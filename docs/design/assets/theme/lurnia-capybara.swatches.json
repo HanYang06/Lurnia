@@ -1,0 +1,110 @@
+{
+  "$description": "Lurnia 主题包「水豚」。颜色逐字来自 docs/design/theme.md §3.1/§3.2；三态来自 ui.md §2.5（theme.md §3.3 规定逐字不动）；圆角/阴影/动效来自 theme.md §四/§五/§六；字号、行距、间距来自 ui.md §4.5/§4.1（主题包不改这三样）。标记为「派生」的悬停/按压色，按 ui.md §4.2 的规则算出 —— 文档只给了规则，没给值。",
+  "light": {
+    "bg": "#FFF5F0",
+    "surface": "#F9EEE8",
+    "surface-raised": "#FFFCF7",
+    "border": "#E3D8D3",
+    "border-strong": "#928883",
+    "text-faint": "#7C726D",
+    "text-muted": "#625954",
+    "text": "#362E2A",
+    "text-strong": "#17100C",
+    "accent": "#A35010",
+    "accent-subtle": "#FFE6D5",
+    "on-accent": "#FFFBF7",
+    "accent-hover": "#994700",
+    "accent-active": "#903E00"
+  },
+  "dark": {
+    "bg": "#150E0A",
+    "surface": "#1D1512",
+    "surface-raised": "#261F1B",
+    "border": "#362E2A",
+    "border-strong": "#736A65",
+    "text-faint": "#887E79",
+    "text-muted": "#ACA29D",
+    "text": "#E0D5D0",
+    "text-strong": "#FCF1EB",
+    "accent": "#D67B42",
+    "accent-subtle": "#3A2417",
+    "on-accent": "#2A1206",
+    "accent-hover": "#E3874E",
+    "accent-active": "#F1945B"
+  },
+  "state": {
+    "allow": {
+      "dark": {
+        "fill": "#162B1C",
+        "ink": "#01DB71"
+      },
+      "light": {
+        "fill": "#DBF5E1",
+        "ink": "#007D3D"
+      },
+      "shape": "✓"
+    },
+    "deny": {
+      "dark": {
+        "fill": "#361E1B",
+        "ink": "#FF4640"
+      },
+      "light": {
+        "fill": "#FFE4DF",
+        "ink": "#D30016"
+      },
+      "shape": "✗"
+    },
+    "uncertain": {
+      "dark": {
+        "fill": "#2F230E",
+        "ink": "#F0A800"
+      },
+      "light": {
+        "fill": "#FBEAD1",
+        "ink": "#8E6200"
+      },
+      "shape": "?"
+    }
+  },
+  "radius": {
+    "radius-sm": "8px",
+    "radius-md": "11px",
+    "radius-lg": "14px",
+    "radius-xl": "18px",
+    "radius-app": "22%"
+  },
+  "shadow": {
+    "shadow-sm": "0 1px 2px rgba(42, 18, 6, 0.18)",
+    "shadow-md": "0 2px 6px rgba(42, 18, 6, 0.22)",
+    "shadow-lg": "0 8px 24px rgba(42, 18, 6, 0.28)"
+  },
+  "motion": {
+    "dur-fast": "140ms",
+    "dur-base": "220ms",
+    "ease": "cubic-bezier(.22, .02, .14, 1)",
+    "dur-brand": "420ms"
+  },
+  "fontSize": {
+    "font-size-caption": "12px",
+    "font-size-meta": "13px",
+    "font-size-body": "14px",
+    "font-size-read": "16px",
+    "font-size-title": "20px"
+  },
+  "lineHeight": {
+    "line-tight": "1.35",
+    "line-body": "1.6",
+    "line-read": "1.85"
+  },
+  "space": {
+    "space-4": "4px",
+    "space-8": "8px",
+    "space-12": "12px",
+    "space-16": "16px",
+    "space-20": "20px",
+    "space-24": "24px",
+    "space-32": "32px",
+    "space-40": "40px"
+  }
+}

@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dependency updates. Grouped so a week of patch bumps arrives as one reviewable
+# PR instead of fifteen, and so a major bump is never buried inside a patch PR.
+
+version: 2
+
+updates:
+  # Python: pyproject.toml + uv.lock. The uv ecosystem keeps uv.lock in sync,
+  # which a plain "pip" entry would not.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      python-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "dependencies: python"]
+
+  # Rust: the Tauri shell.
+  - package-ecosystem: "cargo"
+    directory: "/app/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      cargo-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "dependencies: rust", "area: packaging"]
+
+  # Node: the frontend.
+  - package-ecosystem: "npm"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      npm-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "dependencies: node", "area: ui"]
+
+  # The workflows themselves. A pinned action going stale is a supply-chain
+  # concern, so this one runs more often.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: ["dependencies", "area: ci"]

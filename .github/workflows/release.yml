@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Build the Python sidecar for every platform first, so the Tauri job can
+  # simply consume the artifacts instead of rebuilding them.
+  sidecar:
+    name: Sidecar (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install (locked)
+        run: uv sync --locked --all-groups
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # --clean then --self-check: the released binary must prove it can read
+      # its own DDL and migrate, not merely that PyInstaller exited 0.
+      - name: Build sidecar and self-check
+        run: uv run --no-sync python script/build_sidecar.py --clean
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sidecar-${{ matrix.os }}
+          path: app/src-tauri/binaries/
+          if-no-files-found: error
+
+  bundle:
+    name: Bundle (${{ matrix.os }})
+    needs: sidecar
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: sidecar-${{ matrix.os }}
+          path: app/src-tauri/binaries/
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: app/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend deps
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and bundle
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: "Lurnia ${{ github.ref_name }}"
+          releaseBody: "See the assets below. Verify the sidecar self-check log in the Actions run."
+          releaseDraft: true
+          prerelease: false

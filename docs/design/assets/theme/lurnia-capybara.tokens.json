@@ -1,0 +1,338 @@
+{
+  "$description": "Lurnia 主题包「水豚」。颜色逐字来自 docs/design/theme.md §3.1/§3.2；三态来自 ui.md §2.5（theme.md §3.3 规定逐字不动）；圆角/阴影/动效来自 theme.md §四/§五/§六；字号、行距、间距来自 ui.md §4.5/§4.1（主题包不改这三样）。标记为「派生」的悬停/按压色，按 ui.md §4.2 的规则算出 —— 文档只给了规则，没给值。",
+  "capybara": {
+    "color": {
+      "light": {
+        "bg": {
+          "token": "--lr-bg",
+          "hex": "#FFF5F0",
+          "oklch": "oklch(0.978 0.014 49)",
+          "usage": "窗口底"
+        },
+        "surface": {
+          "token": "--lr-surface",
+          "hex": "#F9EEE8",
+          "oklch": "oklch(0.955 0.014 49)",
+          "usage": "侧栏、列表、检视器"
+        },
+        "surface-raised": {
+          "token": "--lr-surface-raised",
+          "hex": "#FFFCF7",
+          "oklch": "oklch(0.999 0.014 49)",
+          "usage": "卡片、选中项、输入框"
+        },
+        "border": {
+          "token": "--lr-border",
+          "hex": "#E3D8D3",
+          "oklch": "oklch(0.890 0.014 49)",
+          "usage": "分隔线（装饰，不承载信息）"
+        },
+        "border-strong": {
+          "token": "--lr-border-strong",
+          "hex": "#928883",
+          "oklch": "oklch(0.635 0.014 49)",
+          "usage": "控件边界"
+        },
+        "text-faint": {
+          "token": "--lr-text-faint",
+          "hex": "#7C726D",
+          "oklch": "oklch(0.560 0.014 49)",
+          "usage": "时间戳、计数、占位"
+        },
+        "text-muted": {
+          "token": "--lr-text-muted",
+          "hex": "#625954",
+          "oklch": "oklch(0.470 0.014 49)",
+          "usage": "次要说明、元数据"
+        },
+        "text": {
+          "token": "--lr-text",
+          "hex": "#362E2A",
+          "oklch": "oklch(0.310 0.014 49)",
+          "usage": "正文"
+        },
+        "text-strong": {
+          "token": "--lr-text-strong",
+          "hex": "#17100C",
+          "oklch": "oklch(0.180 0.014 49)",
+          "usage": "标题、强调文本"
+        },
+        "accent": {
+          "token": "--lr-accent",
+          "hex": "#A35010",
+          "oklch": "oklch(0.525 0.130 51)",
+          "usage": "强调色：标识的橙，逐字相同"
+        },
+        "accent-subtle": {
+          "token": "--lr-accent-subtle",
+          "hex": "#FFE6D5",
+          "oklch": "oklch(0.945 0.040 51)",
+          "usage": "强调色的淡底"
+        },
+        "on-accent": {
+          "token": "--lr-on-accent",
+          "hex": "#FFFBF7",
+          "oklch": "—",
+          "usage": "填充上的文字"
+        },
+        "accent-hover": {
+          "token": "--lr-accent-hover",
+          "hex": "#994700",
+          "oklch": "oklch(0.495 0.13 51)",
+          "usage": "悬停 —— 派生（−0.03 明度）"
+        },
+        "accent-active": {
+          "token": "--lr-accent-active",
+          "hex": "#903E00",
+          "oklch": "oklch(0.465 0.13 51)",
+          "usage": "按压 —— 派生（再走一步）"
+        }
+      },
+      "dark": {
+        "bg": {
+          "token": "--lr-bg",
+          "hex": "#150E0A",
+          "oklch": "oklch(0.170 0.014 49)",
+          "usage": "窗口底"
+        },
+        "surface": {
+          "token": "--lr-surface",
+          "hex": "#1D1512",
+          "oklch": "oklch(0.205 0.014 49)",
+          "usage": "侧栏、列表、检视器"
+        },
+        "surface-raised": {
+          "token": "--lr-surface-raised",
+          "hex": "#261F1B",
+          "oklch": "oklch(0.245 0.014 49)",
+          "usage": "卡片、选中项、输入框"
+        },
+        "border": {
+          "token": "--lr-border",
+          "hex": "#362E2A",
+          "oklch": "oklch(0.310 0.014 49)",
+          "usage": "分隔线（装饰，不承载信息）"
+        },
+        "border-strong": {
+          "token": "--lr-border-strong",
+          "hex": "#736A65",
+          "oklch": "oklch(0.530 0.014 49)",
+          "usage": "控件边界"
+        },
+        "text-faint": {
+          "token": "--lr-text-faint",
+          "hex": "#887E79",
+          "oklch": "oklch(0.600 0.014 49)",
+          "usage": "时间戳、计数、占位"
+        },
+        "text-muted": {
+          "token": "--lr-text-muted",
+          "hex": "#ACA29D",
+          "oklch": "oklch(0.720 0.014 49)",
+          "usage": "次要说明、元数据"
+        },
+        "text": {
+          "token": "--lr-text",
+          "hex": "#E0D5D0",
+          "oklch": "oklch(0.880 0.014 49)",
+          "usage": "正文"
+        },
+        "text-strong": {
+          "token": "--lr-text-strong",
+          "hex": "#FCF1EB",
+          "oklch": "oklch(0.965 0.014 49)",
+          "usage": "标题、强调文本"
+        },
+        "accent": {
+          "token": "--lr-accent",
+          "hex": "#D67B42",
+          "oklch": "oklch(0.672 0.134 51)",
+          "usage": "强调色：标识的橙，逐字相同"
+        },
+        "accent-subtle": {
+          "token": "--lr-accent-subtle",
+          "hex": "#3A2417",
+          "oklch": "oklch(0.285 0.040 51)",
+          "usage": "强调色的淡底"
+        },
+        "on-accent": {
+          "token": "--lr-on-accent",
+          "hex": "#2A1206",
+          "oklch": "—",
+          "usage": "填充上的文字"
+        },
+        "accent-hover": {
+          "token": "--lr-accent-hover",
+          "hex": "#E3874E",
+          "oklch": "oklch(0.712 0.134 51)",
+          "usage": "悬停 —— 派生（+0.04 明度）"
+        },
+        "accent-active": {
+          "token": "--lr-accent-active",
+          "hex": "#F1945B",
+          "oklch": "oklch(0.752 0.134 51)",
+          "usage": "按压 —— 派生（再走一步）"
+        }
+      }
+    },
+    "state": {
+      "allow": {
+        "dark": {
+          "fill": "#162B1C",
+          "ink": "#01DB71"
+        },
+        "light": {
+          "fill": "#DBF5E1",
+          "ink": "#007D3D"
+        },
+        "shape": "✓"
+      },
+      "deny": {
+        "dark": {
+          "fill": "#361E1B",
+          "ink": "#FF4640"
+        },
+        "light": {
+          "fill": "#FFE4DF",
+          "ink": "#D30016"
+        },
+        "shape": "✗"
+      },
+      "uncertain": {
+        "dark": {
+          "fill": "#2F230E",
+          "ink": "#F0A800"
+        },
+        "light": {
+          "fill": "#FBEAD1",
+          "ink": "#8E6200"
+        },
+        "shape": "?"
+      }
+    },
+    "radius": {
+      "radius-sm": {
+        "token": "--lr-radius-sm",
+        "value": "8px"
+      },
+      "radius-md": {
+        "token": "--lr-radius-md",
+        "value": "11px"
+      },
+      "radius-lg": {
+        "token": "--lr-radius-lg",
+        "value": "14px"
+      },
+      "radius-xl": {
+        "token": "--lr-radius-xl",
+        "value": "18px"
+      },
+      "radius-app": {
+        "token": "--lr-radius-app",
+        "value": "22%"
+      }
+    },
+    "shadow": {
+      "shadow-sm": {
+        "token": "--lr-shadow-sm",
+        "value": "0 1px 2px rgba(42, 18, 6, 0.18)"
+      },
+      "shadow-md": {
+        "token": "--lr-shadow-md",
+        "value": "0 2px 6px rgba(42, 18, 6, 0.22)"
+      },
+      "shadow-lg": {
+        "token": "--lr-shadow-lg",
+        "value": "0 8px 24px rgba(42, 18, 6, 0.28)"
+      }
+    },
+    "motion": {
+      "dur-fast": {
+        "token": "--lr-dur-fast",
+        "value": "140ms"
+      },
+      "dur-base": {
+        "token": "--lr-dur-base",
+        "value": "220ms"
+      },
+      "ease": {
+        "token": "--lr-ease",
+        "value": "cubic-bezier(.22, .02, .14, 1)"
+      },
+      "dur-brand": {
+        "token": "--lr-dur-brand",
+        "value": "420ms"
+      }
+    },
+    "fontSize": {
+      "font-size-caption": {
+        "token": "--lr-font-size-caption",
+        "value": "12px"
+      },
+      "font-size-meta": {
+        "token": "--lr-font-size-meta",
+        "value": "13px"
+      },
+      "font-size-body": {
+        "token": "--lr-font-size-body",
+        "value": "14px"
+      },
+      "font-size-read": {
+        "token": "--lr-font-size-read",
+        "value": "16px"
+      },
+      "font-size-title": {
+        "token": "--lr-font-size-title",
+        "value": "20px"
+      }
+    },
+    "lineHeight": {
+      "line-tight": {
+        "token": "--lr-line-tight",
+        "value": "1.35"
+      },
+      "line-body": {
+        "token": "--lr-line-body",
+        "value": "1.6"
+      },
+      "line-read": {
+        "token": "--lr-line-read",
+        "value": "1.85"
+      }
+    },
+    "space": {
+      "space-4": {
+        "token": "--lr-space-4",
+        "value": "4px"
+      },
+      "space-8": {
+        "token": "--lr-space-8",
+        "value": "8px"
+      },
+      "space-12": {
+        "token": "--lr-space-12",
+        "value": "12px"
+      },
+      "space-16": {
+        "token": "--lr-space-16",
+        "value": "16px"
+      },
+      "space-20": {
+        "token": "--lr-space-20",
+        "value": "20px"
+      },
+      "space-24": {
+        "token": "--lr-space-24",
+        "value": "24px"
+      },
+      "space-32": {
+        "token": "--lr-space-32",
+        "value": "32px"
+      },
+      "space-40": {
+        "token": "--lr-space-40",
+        "value": "40px"
+      }
+    }
+  }
+}

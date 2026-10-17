@@ -7,6 +7,9 @@ authors = [
     { name = "HanYang06", email = "jihanyang123@163.com" }
 ]
 requires-python = ">=3.14"
+dependencies = [
+    "onconf>=2.1.0",
+]
 
 [project.scripts]
 lurnia = "lurnia:main"
@@ -14,10 +17,6 @@ lurnia = "lurnia:main"
 [build-system]
 requires = ["uv_build>=0.12.22,<0.13.0"]
 build-backend = "uv_build"
-
-dependencies = [
-    "onconf>=2.1.0",
-]
 
 [dependency-groups]
 dev = [
@@ -27,6 +26,7 @@ dev = [
     "mkdocstrings[python]>=1.0.7",
     "mypy>=2.4.0",
     "pre-commit>=4.7.0",
+    "pyinstaller>=6.22.3",
     "ruff>=0.17.0",
 ]
 
@@ -37,3 +37,94 @@ tests = [
     "pytest-mock>=3.16.0",
     "pytest-xdist>=3.8.0",
 ]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+# Deliberately explicit: the repo ships one rule per invariant class plus the
+# bugbear/security families, so "the rules" exist in version control rather
+# than in whatever ruff's defaults happen to be today.
+select = [
+    "E", "W",     # pycodestyle
+    "F",          # pyflakes
+    "I",          # isort
+    "N",          # pep8-naming
+    "UP",         # pyupgrade
+    "B",          # flake8-bugbear
+    "A",          # flake8-builtins
+    "C4",         # flake8-comprehensions
+    "DTZ",        # flake8-datetimez
+    "PIE",        # flake8-pie
+    "PT",         # flake8-pytest-style
+    "RET",        # flake8-return
+    "SIM",        # flake8-simplify
+    "TID",        # flake8-tidy-imports
+    "ARG",        # flake8-unused-arguments
+    "PL",         # pylint
+    "RUF",        # ruff-specific
+    "S",          # flake8-bandit
+    "T20",        # flake8-print
+]
+ignore = [
+    # The project writes its docs and comments in Chinese. Full-width
+    # punctuation is correct there, not an "ambiguous unicode character".
+    "RUF001", "RUF002", "RUF003",
+    # PLC0415: deliberate lazy imports (see the audit script and I9 tests).
+    "PLC0415",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "S101",    # assert is the point of a test
+    "S603",    # the suite runs sys.executable with arguments it built itself
+    "PLR2004", # magic values in expectations are fine
+    "ARG001",  # fixtures are passed for their side effect
+    "SLF001",  # tests may touch private helpers to prove the rule fires
+    "PLR0915", # one long test function is clearer than five fixtures
+]
+"script/*" = [
+    "T201",    # these are command-line tools; printing is their output
+    "S603",    # they shell out to the interpreter they are running under
+    "PLR0911", # a check function may have many early returns
+    "PLR0912", # ... and many branches
+]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unreachable = true
+pretty = true
+files = ["src", "tests", "script"]
+
+# OnConf is typed (mypy strict upstream) but ships no py.typed marker yet, so
+# mypy cannot see its annotations. Recorded here rather than worked around at
+# the call site; drop this override once OnConf ships py.typed.
+[[tool.mypy.overrides]]
+module = ["onconf", "onconf.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/lurnia"]
+# The config layer can only be exercised in a subprocess (OnConf's engine is a
+# process singleton), so subprocess measurement is not optional here: without
+# it conf.py reports 0% and the gate silently means less than it says.
+patch = ["subprocess"]
+parallel = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# Hard gate. The kernel is small and every branch is reachable, so this is a
+# floor, not an aspiration — lower it only with a written reason.
+fail_under = 90

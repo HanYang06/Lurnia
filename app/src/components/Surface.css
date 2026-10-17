@@ -1,0 +1,84 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * 承载类原语。非交互，所以没有悬停/按压态 —— 它们不该有，而不是漏了
+ * （states.test.ts 里登记了这份名单）。
+ */
+
+.lr-card {
+  border: 1px solid var(--lr-border);
+  border-radius: var(--lr-radius-lg);
+  padding: var(--lr-space-16);
+}
+
+.lr-card--raised {
+  background: var(--lr-surface-raised);
+
+  /* 抬起的卡片：行级投影（§4.6）。卡片本身有 1px 边，但边只说明「到这儿为止」，
+     要说「它浮在页面上」还得有影子。 */
+  box-shadow: var(--lr-shadow-1);
+}
+
+.lr-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-8);
+}
+
+.lr-skeleton__line {
+  background: var(--lr-surface-raised);
+  border-radius: var(--lr-radius-sm);
+  display: block;
+  height: var(--lr-space-12);
+}
+
+.lr-meter {
+  background: var(--lr-surface);
+  border: 1px solid var(--lr-border);
+  border-radius: var(--lr-radius-sm);
+  height: var(--lr-space-8);
+  overflow: hidden;
+  width: 100%;
+}
+
+/* 量度条只用明度差异，不用第三种色 —— §1.1：工作界面里色相归语义所有。 */
+.lr-meter__fill {
+  background: var(--lr-accent);
+  display: block;
+  height: 100%;
+  transition: width var(--lr-dur-base) var(--lr-ease);
+}
+
+/*
+ * 空态（非交互）。它不是装饰：只有一行灰字的空面板看起来像是坏了。
+ * 层次是「标题 → 为什么空 → 将来长出什么」，三级用三种文字令牌拉开。
+ */
+.lr-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-8);
+  margin: var(--lr-space-40) auto;
+  max-width: 46ch;
+}
+
+.lr-empty__title {
+  color: var(--lr-text);
+  font-size: var(--lr-font-size-read);
+  font-weight: 600;
+  line-height: var(--lr-line-tight);
+  margin: 0;
+}
+
+.lr-empty__why {
+  color: var(--lr-text-muted);
+  font-size: var(--lr-font-size-meta);
+  line-height: var(--lr-line-body);
+  margin: 0;
+}
+
+.lr-empty__next {
+  color: var(--lr-text-faint);
+  font-size: var(--lr-font-size-caption);
+  line-height: var(--lr-line-body);
+  margin: 0;
+}

@@ -36,6 +36,14 @@ Lurnia 当前没有发布 1.0 的必要，不承诺 1.0——不是「永不发 
 | [invariants.md](invariants.md) | 哪些东西任何 0.x 都不许破（九条） |
 | [versioning.md](versioning.md) | 版本号怎么走、破坏性变更怎么办 |
 | [bus.md](bus.md) | 模块之间怎么说话（两平面 + 事件封套） |
+| [storage.md](storage.md) | 数据落哪、二进制落哪（双库 + 100KB 阈值） |
+| [packaging.md](packaging.md) | APP 怎么打出来（Tauri 宿主 + Python sidecar） |
+| [event-log.md](event-log.md) | 事件日志怎么轮转（归档后裁剪，只在归档落盘后才删行） |
+| [composition.md](composition.md) | 四层怎么装成一台能跑的核心（组合根、I5 的接线、数据目录） |
+| [ui.md](ui.md) | 界面长什么样：审美主张、配色、布局、无障碍 |
+| [editor.md](editor.md) | 正文与文档是什么、怎么存、怎么改、怎么锚；编辑器作为一套体系怎么扩展（路线 029–034 / 108–117） |
+| [proposals/logo.md](proposals/logo.md) | 标识的**文字层**（**未裁定**）：为什么不收敛、三条叙事向量、反简报、验收；不含图形 |
+| [theme.md](theme.md) | 主题包（路线 098）：**「水豚」**——色相从标识算来、六类令牌、实测对比度 |
 | [../roadmap/1.x-开发.md](../roadmap/1.x-开发.md) | **总量**：这个项目可能包含的全部东西 |
 
 ## 四、施工顺序
@@ -46,10 +54,19 @@ Lurnia 当前没有发布 1.0 的必要，不承诺 1.0——不是「永不发 
 内核（K）→ 权限（P）→ 笔记（N）→ 项目（PRJ）→ AI
 ```
 
-AI 专项慢慢做，从来不拖内核。存储与数据库等 OnCasket 的结果。协作模块等网络架构（P2P / 半中心化）定形。
+AI 专项慢慢做，从来不拖内核。存储自研引擎（OnCasket）已废弃，改用现成轮子，口径见 [storage.md](storage.md)。协作模块等网络架构（P2P / 半中心化）定形。
 
 ## 五、工程侧待办
 
-- `pyproject.toml` 与 `uv.lock` 已脱钩：pyproject 里有 `onconf>=2.1.0` 而 lock 里查不到，`.venv` 里却装着 2.1.0。**加新依赖之前先对齐锁。**
-- 确认 `onconf` 走 PyPI registry 还是本地路径依赖。
+- ~~`pyproject.toml` 与 `uv.lock` 已脱钩~~ 已修正（2026-10-16）：原因是 `dependencies` 被误写进 `[build-system]`（PEP 518 只认 `requires` / `build-backend`），已移入 `[project]` 并 `uv lock`。`uv lock --check` 通过。
+- `onconf` 走 **PyPI registry**，已确定；不是本地路径依赖。
 - `README.md` 是空的。
+
+### 验证记录（2026-10-16）
+
+| 检查 | 结果 |
+| --- | --- |
+| `grep -c onconf uv.lock` | 5（修复前为 0） |
+| `uv lock --check` | exit 0 |
+| `uv tree`（lurnia 直接依赖） | `onconf 2.1.0` |
+| Python / SQLite | 3.14.8 / 3.53.1，JSON1 + FTS5 + `threadsafety=3` 均可用 |

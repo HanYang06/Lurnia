@@ -1,0 +1,123 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * 欢迎面（空编辑区的那一屏）。
+ *
+ * 版面只有三段纵向关系：**图形 / 一片留白 / 快捷键**。没有边框、没有底纹、
+ * 没有分隔线 —— 层次全由留白给出（ui.md §1.0 留白、§4.1 间距基准 4）。
+ *
+ * 三条口径落在这里：
+ *
+ * 1. **整块居中，行内两端对齐**（2026-10-17 改）。原先 `align-items: flex-start`：
+ *    居中算法管的是「块」，块里的东西贴着左边排，于是图形落在整个编辑区的左侧、
+ *    右边空出一大片 —— 实机截图一眼就看出来了（水豚偏左三分之一屏）。
+ *    现在图形与快捷键清单一起**在这条纵栏里居中**；而清单的每一行仍然是
+ *    「标签在左、键帽在右」的两端对齐，没有变成逐行居中的菱形（那会让键帽左右参差）。
+ * 2. **双击新建的反馈只给图形**（`filter` 改一点明度）：这片区域不是按钮，
+ *    整片换底色会把它说成一个可以点的控件。悬停时变的是那 160px 的像素，
+ *    用户由此知道「这里能动手」，而不用读一句话。
+ * 3. **字号只有两档**：标签走正文档，键帽走 caption 档（§4.5）。
+ *    键帽是**控件外观**，所以它有 1px 边框（§1.0 允许：边框在这里承载「这是一颗键」
+ *    这个信息，不是装饰）；图形本身仍然没有任何框。
+ *
+ * **为什么不在右边补一个装饰**（同日改）：图形偏左看起来很空，直觉是「右边放棵树」。
+ * 但 §1.0 的判据是「一个像素删掉后信息没少」—— 树删掉什么都不少，所以它不该在；
+ * 而且这张低多边形水豚是特定笔法，旁边配一张别的来源的插画，两种渲染风格会互相拆台。
+ * 缺口是**构图问题**，不是「缺个东西」的问题，用居中就解决了。
+ */
+
+.lr-welcome {
+  align-items: center;
+  color: var(--lr-text);
+  display: flex;
+  flex-direction: column;
+
+  /*
+   * 双击的命中范围是这一片：居中之后上下会空出一截，所以给它 `height: 100%` ——
+   * 否则「在编辑区双击」只有在鼠标正好落在图形或键位列表上时才成立。
+   */
+  height: 100%;
+  justify-content: center;
+
+  /* 光标不变：这一片不是链接也不是按钮，`pointer` 会把隐藏操作说成显式操作。 */
+  padding: var(--lr-space-32);
+}
+
+/*
+ * 大 logo：图源是 256 那一档，**显示** 160 —— 缩放后仍然清晰，也不至于把快捷键
+ * 挤到屏幕下面（矮窗口下 256 会占掉将近一半高度）。数值与 §4.1 的间距基准对齐。
+ */
+.lr-welcome__mark {
+  height: 160px;
+  transition: filter var(--lr-dur-fast) var(--lr-ease);
+  width: 160px;
+}
+
+/* 悬停反馈：图形提亮一点点。没有位移、没有缩放、没有文案（§1.0 非必要不动）。 */
+.lr-welcome:hover .lr-welcome__mark {
+  filter: brightness(1.08);
+}
+
+/*
+ * 快捷键列表：图形与它之间是 40 的留白 —— 这两段是不同性质的东西（标识 / 操作），
+ * 靠一段明显的空把它们分开，比加一条分隔线省一个像素还更安静。
+ */
+.lr-welcome__keys {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-12);
+  list-style: none;
+  margin: var(--lr-space-40) 0 0;
+  padding: 0;
+}
+
+/* 一行：标签在左、键位在右。行内两端对齐，所以键帽的右缘是齐的。 */
+.lr-welcome__row {
+  align-items: center;
+  display: flex;
+  gap: var(--lr-space-24);
+  justify-content: space-between;
+
+  /* 键位最长的那一行决定整块宽度，短行的标签不会因此跟键帽贴在一起。 */
+  min-width: 320px;
+}
+
+.lr-welcome__label {
+  color: var(--lr-text-muted);
+  font-size: var(--lr-font-size-body);
+  line-height: var(--lr-line-body);
+}
+
+.lr-welcome__chord {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--lr-space-4);
+}
+
+/* 键帽之间的 `+`：装饰性的连接符，语义已经由两颗分开的键帽给出了。 */
+.lr-welcome__plus {
+  color: var(--lr-text-faint);
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-caption);
+}
+
+/*
+ * 键帽。`<kbd>` 自带等宽字体，但字号不能被浏览器默认的 0.8em 之类带走 ——
+ * 字号必须落在五档里（§4.5），所以这里显式给 caption 档，也顺带覆盖 base.css
+ * 里没有的 `kbd` 规则。
+ */
+.lr-welcome__key {
+  border: 1px solid var(--lr-border);
+  border-radius: var(--lr-radius-sm);
+  color: var(--lr-text-faint);
+  display: inline-block;
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-caption);
+  font-style: normal;
+  line-height: var(--lr-line-tight);
+
+  /* 命中区略大于字形，但仍然是 4 的倍数（§4.1）：2 6 是「一行等宽字」的量级。 */
+  min-width: var(--lr-space-20);
+  padding: var(--lr-space-4) var(--lr-space-8);
+  text-align: center;
+}

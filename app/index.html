@@ -1,0 +1,30 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lurnia</title>
+    <script>
+      // 首帧防闪：把 src/theme.ts 的同一规则内联一份（默认跟随系统 + 记住手选）。
+      // 必须内联 —— 等模块加载完再设，用户会先看到一帧深色再跳到浅色。
+      // 键名与媒体查询串由 src/theme.test.ts 钉住：改了这里不改那边，测试就红。
+      (function () {
+        try {
+          var choice = localStorage.getItem("lurnia.theme");
+          var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme =
+            choice === "dark" || choice === "light" ? choice : dark ? "dark" : "light";
+        } catch (error) {
+          // 读不到就交给 tokens.css 里 :root 的深色默认值，不打断启动。
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

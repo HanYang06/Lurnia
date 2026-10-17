@@ -1,0 +1,52 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Tag 与 StateBadge。三态用的是 §2.5 的「淡底 + 饱和字」，不是整块高饱和色块 ——
+ * 后者在深色界面上是刺眼的告示牌。
+ */
+
+.lr-tag {
+  border: 1px solid var(--lr-border);
+  border-radius: var(--lr-radius-sm);
+  color: var(--lr-text-muted);
+  display: inline-flex;
+  font-size: var(--lr-font-size-caption);
+  padding: var(--lr-space-4) var(--lr-space-8);
+}
+
+.lr-tag--accent {
+  border-color: var(--lr-accent);
+  color: var(--lr-accent);
+}
+
+.lr-state-badge {
+  align-items: center;
+  border-radius: var(--lr-radius-sm);
+  display: inline-flex;
+  font-size: var(--lr-font-size-caption);
+  gap: var(--lr-space-4);
+  padding: var(--lr-space-4) var(--lr-space-8);
+}
+
+.lr-state-badge__shape {
+  font-family: var(--lr-font-mono);
+}
+
+/*
+ * 三态：**同结构、只换色相**（ui.md §2.5 第 1 条）。任何一态更亮、更饱和、更大，
+ * 就等于在视觉上宣布它是默认值 —— I2 明确禁止。所以下面三条只有颜色不同。
+ */
+.lr-state-badge--allow {
+  background: var(--lr-allow-fill);
+  color: var(--lr-allow-ink);
+}
+
+.lr-state-badge--deny {
+  background: var(--lr-deny-fill);
+  color: var(--lr-deny-ink);
+}
+
+.lr-state-badge--uncertain {
+  background: var(--lr-uncertain-fill);
+  color: var(--lr-uncertain-ink);
+}

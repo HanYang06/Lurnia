@@ -1,0 +1,54 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * 组件陈列页的排布。它只是把原语摊开，所以样式刻意少 —— 免得评审页自己的排版
+ * 抢了被评审的东西的戏。
+ */
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-32);
+}
+
+.gallery__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-12);
+}
+
+.gallery__heading {
+  color: var(--lr-text-strong);
+  font-size: var(--lr-font-size-body);
+  font-weight: 600;
+  line-height: var(--lr-line-tight);
+  margin: 0;
+}
+
+.gallery__note {
+  color: var(--lr-text-muted);
+  font-size: var(--lr-font-size-meta);
+  line-height: var(--lr-line-body);
+  margin: 0;
+}
+
+.gallery__row {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lr-space-16);
+}
+
+.gallery__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-12);
+  min-width: 200px;
+}
+
+.gallery__card-title {
+  color: var(--lr-text);
+  font-size: var(--lr-font-size-meta);
+  font-weight: 600;
+  margin: 0 0 var(--lr-space-4);
+}

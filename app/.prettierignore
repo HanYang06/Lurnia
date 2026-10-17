@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+# 生成物与依赖不进格式化门禁（prettier 3 起 .gitignore 不再自动生效）。
+
+node_modules/
+dist/
+src-tauri/
+coverage/
+pnpm-lock.yaml

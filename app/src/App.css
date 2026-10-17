@@ -1,0 +1,151 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * 挂在四个区里的面板样式。四区本身的布局在 shell/Shell.css —— 这里只管内容：
+ * 读面的正文块、检视器的属性表、事件流、状态条上的那个指示点。
+ *
+ * 一条颜色字面量都没有（ui.md §八），六个状态里需要的那几个也在下面的规则里。
+ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-20);
+}
+
+.note {
+  color: var(--lr-text-muted);
+  line-height: var(--lr-line-body);
+  margin: 0;
+}
+
+/* 真正的失败提示：形状（✗）+ 文字 + 颜色三者冗余（ui.md §7.3 第 1 条）。 */
+.note--bad {
+  background: var(--lr-deny-fill);
+  border-radius: var(--lr-radius-md);
+  color: var(--lr-deny-ink);
+  padding: var(--lr-space-8) var(--lr-space-12);
+}
+
+.heading {
+  color: var(--lr-text-muted);
+  font-size: var(--lr-font-size-read);
+  line-height: var(--lr-line-tight);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* 检视器里的属性表。 */
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-12);
+  margin: 0 0 var(--lr-space-20);
+}
+
+.facts dt {
+  color: var(--lr-text-faint);
+  font-size: var(--lr-font-size-caption);
+}
+
+.facts dd {
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-caption);
+  margin: var(--lr-space-4) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.decisions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lr-space-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 事件流：内核广播平面的原始封套。 */
+.events {
+  border-top: 1px solid var(--lr-border);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.events li {
+  border-bottom: 1px solid var(--lr-border);
+  padding: var(--lr-space-8) 0;
+}
+
+.events__head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lr-space-12);
+}
+
+.events__seq,
+.events__when {
+  color: var(--lr-text-faint);
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-caption);
+}
+
+.events__topic {
+  color: var(--lr-text);
+  font-weight: 600;
+}
+
+.events__who {
+  color: var(--lr-text-muted);
+}
+
+.events__payload {
+  color: var(--lr-text-muted);
+  display: block;
+  font-family: var(--lr-font-mono);
+  font-size: var(--lr-font-size-caption);
+  margin-top: var(--lr-space-4);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 状态条上的核心指示点。它不是 I2 的判定徽标（那归 StateBadge），只是一个进程状态，
+ * 而且右边永远跟着文字 —— 颜色只是冗余的那一层。
+ */
+.status__dot {
+  border-radius: 50%;
+  display: inline-block;
+  height: var(--lr-space-8);
+  width: var(--lr-space-8);
+}
+
+.status__dot[data-state="up"] {
+  background: var(--lr-accent);
+}
+
+.status__dot[data-state="wait"] {
+  background: var(--lr-text-faint);
+}
+
+.status__dot[data-state="down"] {
+  background: var(--lr-deny-ink);
+}
+
+/*
+ * 落盘状态（自动落盘 / 提交 / 失败）。它进状态条是因为它就是**持久状态**（§3.1），
+ * 不是一次性的提示：写完一句停三秒，眼睛能确认「确实存下去了」。
+ *
+ * 失败那一态除了颜色还带 `✗`（§7.3 第 1 条：状态不许只靠颜色），并且在这里截断 ——
+ * 内核的冲突说明可能很长，状态条只有 28px，不能让它把状态条撑开。
+ */
+.status__note {
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status__note[data-bad="true"] {
+  color: var(--lr-deny-ink);
+}

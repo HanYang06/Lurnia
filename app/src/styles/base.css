@@ -1,0 +1,68 @@
+/* SPDX-FileCopyrightText: 2026 HanYang06 */
+/* SPDX-License-Identifier: Apache-2.0 */
+/**
+ * 全局样式基线（路线 093）。口径：[docs/design/ui.md](../../../docs/design/ui.md) §4、§5、§7.3。
+ *
+ * 这一层只做三件事：把浏览器的默认值清掉、把焦点环立起来、把动效的开关接上。
+ * **组件样式不在这里**（094 还没做）。本文件不得出现颜色字面量。
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--lr-bg);
+  color: var(--lr-text);
+  font-family: var(--lr-font-sans);
+  font-size: var(--lr-font-size-body);
+  line-height: var(--lr-line-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * 焦点可见性是可用性基础设施，不是装饰（ui.md §4.3）。
+ * 键盘焦点给 2px 强调色外环 + 2px 偏移；**禁止** `outline: none` 之后不补替代物。
+ */
+:focus-visible {
+  outline: var(--lr-focus-ring-width) solid var(--lr-accent);
+  outline-offset: var(--lr-focus-ring-offset);
+}
+
+::selection {
+  background: var(--lr-accent-subtle);
+  color: var(--lr-text-strong);
+}
+
+/** 表单控件默认不继承字体，这里补上，免得占位壳里出现两种字号。 */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/**
+ * 动效可关（ui.md §4.4）：**时长归零，只保留状态变化**，不做位移与缩放。
+ * 用 `!important` 是有意的 —— 这条必须压过组件自己的过渡声明，否则「可关」是假的。
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

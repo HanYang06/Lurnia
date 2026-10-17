@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege by default; jobs widen only what they need.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep uv quiet-ish and deterministic in CI.
+  UV_FROZEN: "1"
+
+jobs:
+  # ---------------------------------------------------------------------
+  # The Python quality gates. These are exactly the documented gates; the
+  # point of running them here is that nobody has to remember them.
+  # ---------------------------------------------------------------------
+  python:
+    name: Python gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install (locked)
+        run: uv sync --locked --all-groups
+
+      - name: Lint
+        run: uv run --no-sync ruff check .
+
+      - name: Format check
+        run: uv run --no-sync ruff format --check .
+
+      - name: Type check (strict)
+        run: uv run --no-sync python -m mypy .
+
+      # Coverage is a hard gate (fail_under in pyproject.toml), so this step
+      # fails when coverage drops rather than merely reporting a number.
+      - name: Tests + coverage
+        run: uv run --no-sync pytest --cov
+
+      # Invariants I1/I2/I3/I4/I7/I9 as static checks, runnable on their own.
+      - name: Architecture audit
+        run: uv run --no-sync python script/audit.py
+
+      - name: Roadmap conformance
+        run: uv run --no-sync python script/roadmap.py
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ github.run_id }}
+          path: |
+            coverage.xml
+            htmlcov/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------
+  # The sidecar build. Heavier than the gates (PyInstaller), so it is its
+  # own job. The script runs --self-check INSIDE the frozen artifact: a build
+  # that cannot read its own DDL fails here instead of on a user's machine.
+  # ---------------------------------------------------------------------
+  sidecar:
+    name: Sidecar build (${{ matrix.os }})
+    needs: python
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install (locked)
+        run: uv sync --locked --all-groups
+
+      # rustc supplies the target triple Tauri's externalBin names the binary with.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build sidecar and self-check
+        run: uv run --no-sync python script/build_sidecar.py --clean
+
+      - name: Upload sidecar
+        uses: actions/upload-artifact@v7
+        with:
+          name: sidecar-${{ matrix.os }}
+          path: app/src-tauri/binaries/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------
+  # Frontend gates. The UI is its own pnpm project under app/, so it gets its
+  # own job. These mirror AGENTS.md §5 and .pre-commit-config.yaml; the point
+  # of running them here is that nobody has to remember them.
+  #
+  # The token test is not an ordinary unit test: it reads docs/design/ui.md and
+  # compares the token tables against app/src/styles/tokens.css cell by cell,
+  # and recomputes the contrast table in ui.md §7.2. A token value that drifts
+  # from the design document fails here.
+  # ---------------------------------------------------------------------
+  frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: app/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      - name: SPDX headers
+        working-directory: app
+        run: pnpm check:spdx
+
+      - name: Lint (TS/TSX)
+        working-directory: app
+        run: pnpm lint:js
+
+      - name: Lint (CSS)
+        working-directory: app
+        run: pnpm lint:css
+
+      - name: Format check
+        working-directory: app
+        run: pnpm format:check
+
+      - name: Type check
+        working-directory: app
+        run: pnpm typecheck
+
+      - name: Tests (tokens vs design doc, contrast)
+        working-directory: app
+        run: pnpm test
+
+      - name: Build
+        working-directory: app
+        run: pnpm build
